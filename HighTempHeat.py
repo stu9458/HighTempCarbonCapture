@@ -34,12 +34,15 @@ def set_PWM_dc():
     # pwm.start(dc)
 
 def set_heat_time():
-    print("OKOK")
-    # global heat_time, estimated_heat_time
-    # estimated_heat_time = str(estimated_heat_time_scale.get()) + ':00'
-    # print('輸入加熱時間 heat_time: ', estimated_heat_time)
-    # heat_time_end_entry.delete(0, 'end')
-    # heat_time_end_entry.insert(0, '目標時間  ' + str(estimated_heat_time))
+    global input_heating_time
+    global set_heating_time_value
+    try:
+        value = datetime.strptime(str(input_heating_time.get()), "%H:%M:%S").time()
+        print('輸入加熱時間 heat_time: ', value)
+        set_heating_time_value.set(str(value))
+    except:
+        print("時間設定格式錯誤，請重新設定")
+        set_heating_time_value.set("00:00:00")
 
 def set_input_temperature():
     global input_temperature
@@ -48,7 +51,7 @@ def set_input_temperature():
     print('輸入溫度 input_temperature: ', value)
     set_temperature_value.set(str(value))
 
-# 主要視窗設定
+##### 主要視窗設定
 root = tk.Tk()
 root.title("高溫感應式加熱模組電控")
 root.geometry('700x400')
@@ -161,9 +164,10 @@ w_lable = tk.Label(display_data_region, text='冷卻', borderwidth=1, relief="so
 w_lable.grid(column=w_column, row=w_row, pady=0)
 display_data_region.pack(side='top', anchor='w')
 
+##### 設定區域設定
 setting_data_region = tk.LabelFrame(root, text='設定區域', padx=10, pady=10)
 setting_data_region.place(x=0, y=0)
-# 設定溫度
+# 目標溫度設定
 w_row = 4
 w_column = 0
 input_temperature = tk.Entry(setting_data_region, width=entry_width, borderwidth=1, relief="solid")
@@ -188,6 +192,41 @@ set_temperature_button = tk.Button(setting_data_region, text="確認", command=s
 set_temperature_button.grid(column=w_column, row=w_row)
 setting_data_region.pack(side='top', anchor='w')
 
+# 加熱時間設定
+w_row = 6
+w_column = 0
+input_heating_time = tk.Entry(setting_data_region, width=entry_width, borderwidth=1, relief="solid")
+input_heating_time.grid(column=w_column, row=w_row, pady=2)
+w_row = 6
+w_column = 1
+set_heating_time_value = tk.StringVar()  # 建立文字變數
+set_heating_time_value.set('00:00:00')      # 設定內容
+set_heating_time = tk.Label(setting_data_region, textvariable=set_heating_time_value, width=entry_width, borderwidth=1, relief="solid")
+set_heating_time.grid(column=w_column, row=w_row, pady=2)
+w_row = 7
+w_column = 0
+w_lable = tk.Label(setting_data_region, text="Heating Time.(mins)", borderwidth=0, relief="solid")
+w_lable.grid(column=w_column, row=w_row)
+w_row = 7
+w_column = 1
+w_lable = tk.Label(setting_data_region, text='Set Heating Time.(mins)', borderwidth=0, relief="solid")
+w_lable.grid(column=w_column, row=w_row)
+w_row = 6
+w_column = 2
+set_heating_time_button = tk.Button(setting_data_region, text="確認", command=set_heat_time)
+set_heating_time_button.grid(column=w_column, row=w_row)
+setting_data_region.pack(side='left', anchor='w')
+
+# 開始運行/停止運行-按鈕
+w_row = 8
+w_column = 0
+set_heating_time_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command="")
+set_heating_time_button.grid(column=w_column, row=w_row)
+w_row = 8
+w_column = 1
+set_heating_time_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command="")
+set_heating_time_button.grid(column=w_column, row=w_row)
+setting_data_region.pack(side='top', anchor='w')
 
 # # # 預定溫度
 # # w_row = 1
