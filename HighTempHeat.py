@@ -237,12 +237,8 @@ setting_data_region.pack(side='top', anchor='w')
 # # target_temperature_entry.insert(0, '')
 # # target_temperature_entry.grid(column=1, row=w_row)
 # #
-#
-# #
-# #
 # # start_button = tk.Button(root, text="設定", command=set_input_temperature)
 # # start_button.grid(column=2, row=w_row)
-# #
 # #
 # # # 預計加熱時間
 # # w_row = 4
@@ -256,7 +252,6 @@ setting_data_region.pack(side='top', anchor='w')
 # #
 # # start_button = tk.Button(root, text="設定", command=set_heat_time)
 # # start_button.grid(column=2, row=w_row)
-# #
 # #
 # # # 固定加熱功率
 # # w_row = 5
@@ -278,7 +273,6 @@ setting_data_region.pack(side='top', anchor='w')
 # # heat_kwh_entry = tk.Entry(root, width=entry_width, borderwidth=1, relief="solid")
 # # heat_kwh_entry.insert(0, '')
 # # heat_kwh_entry.grid(column=1, row=w_row)
-# #
 # #
 # # # 風量
 # # w_row = 7
