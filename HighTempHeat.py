@@ -6,9 +6,12 @@ import threading
 # import RPi.GPIO as GPIO
 from time import time, sleep
 from datetime import datetime
-# from tkinter import messagebox
+from tkinter import messagebox
 # import spidev
 
+PWMPin = 13 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
+SSRPin = 17 # Broadcom pin 17 (P1 pin 11)
+relayPin = 27 # Broadcom pin 27 (P1 pin 13)
 
 def relay_on():
     # GPIO.output(relayPin, GPIO.HIGH)
@@ -37,12 +40,12 @@ def set_heat_time():
     global input_heating_time
     global set_heating_time_value
     try:
-        value = datetime.strptime(str(input_heating_time.get()), "%H:%M:%S").time()
-        print('輸入加熱時間 heat_time: ', value)
-        set_heating_time_value.set(str(value))
+        value = datetime.strptime(str(input_heating_time.get()), "%M:%S").time()
+        print('輸入加熱時間 heat_time: ', str(value)[3:])
+        set_heating_time_value.set(str(value)[3:])
     except:
         print("時間設定格式錯誤，請重新設定")
-        set_heating_time_value.set("00:00:00")
+        set_heating_time_value.set("00:00")
 
 def set_input_temperature():
     global input_temperature
@@ -200,7 +203,7 @@ input_heating_time.grid(column=w_column, row=w_row, pady=2)
 w_row = 6
 w_column = 1
 set_heating_time_value = tk.StringVar()  # 建立文字變數
-set_heating_time_value.set('00:00:00')      # 設定內容
+set_heating_time_value.set('00:00')      # 設定內容
 set_heating_time = tk.Label(setting_data_region, textvariable=set_heating_time_value, width=entry_width, borderwidth=1, relief="solid")
 set_heating_time.grid(column=w_column, row=w_row, pady=2)
 w_row = 7
