@@ -54,6 +54,20 @@ def set_input_temperature():
     print('輸入溫度 input_temperature: ', value)
     set_temperature_value.set(str(value))
 
+def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
+    global heating_light
+    heating_light.delete()
+    heating_light.create_oval(5, 5, 20, 20, width=2, fill=heating_color, outline=heating_color)
+    retaining_light.delete()
+    retaining_light.create_oval(5, 5, 20, 20, width=2, fill=retaning_color, outline=retaning_color)
+    cooling_light.delete()
+    cooling_light.create_oval(5, 5, 20, 20, width=2, fill=cooling_color, outline=cooling_color)
+def Start():
+    Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
+
+def Stop():
+    Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
+
 ##### 主要視窗設定
 root = tk.Tk()
 root.title("高溫感應式加熱模組電控")
@@ -223,11 +237,11 @@ setting_data_region.pack(side='left', anchor='w')
 # 開始運行/停止運行-按鈕
 w_row = 8
 w_column = 0
-set_heating_time_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command="")
+set_heating_time_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command=Start)
 set_heating_time_button.grid(column=w_column, row=w_row)
 w_row = 8
 w_column = 1
-set_heating_time_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command="")
+set_heating_time_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command=Stop)
 set_heating_time_button.grid(column=w_column, row=w_row)
 setting_data_region.pack(side='top', anchor='w')
 
