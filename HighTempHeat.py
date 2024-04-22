@@ -3,23 +3,36 @@
 # External module imports
 import tkinter as tk
 import threading
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 from time import time, sleep
 from datetime import datetime
 from tkinter import messagebox
-# import spidev
+import spidev
 
 PWMPin = 13 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
 SSRPin = 17 # Broadcom pin 17 (P1 pin 11)
 relayPin = 27 # Broadcom pin 27 (P1 pin 13)
 
+GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
+GPIO.setup(SSRPin, GPIO.OUT) # LED pin set as output
+GPIO.setup(relayPin, GPIO.OUT) # LED pin set as output
+GPIO.setup(PWMPin, GPIO.OUT) # PWM pin set as output
+
 def relay_on():
-    # GPIO.output(relayPin, GPIO.HIGH)
-    print("OKOK")
+    GPIO.output(relayPin, GPIO.HIGH)
+    print("Relay on")
 
 def relay_off():
-    # GPIO.output(relayPin, GPIO.LOW)
-    print("OKOK")
+    GPIO.output(relayPin, GPIO.LOW)
+    print("Relay off")
+
+def SSR_on():
+    GPIO.output(SSRPin, GPIO.HIGH)
+    print("SSR on")
+
+def SSR_off():
+    GPIO.output(SSRPin, GPIO.LOW)
+    print("SSR off")
 
 def set_PWM_dc():
     print("OKOK")
@@ -64,14 +77,18 @@ def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
     cooling_light.create_oval(5, 5, 20, 20, width=2, fill=cooling_color, outline=cooling_color)
 def Start():
     Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
+    relay_on()
+    SSR_on()
 
 def Stop():
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
+    relay_off()
+    SSR_off()
 
 ##### 主要視窗設定
 root = tk.Tk()
 root.title("高溫感應式加熱模組電控")
-root.geometry('700x400')
+root.geometry('600x320')
 
 display_data_region = tk.LabelFrame(root, text='顯示區域', padx=10, pady=10)
 display_data_region.place(x=0, y=0)
