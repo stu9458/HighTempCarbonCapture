@@ -55,29 +55,6 @@ def GetShortFromBigEndianArray(data, sindex):
         bb.reverse()
         return bb
     return 0
-def crc16_cal(data):
-    if data == 0x00:
-        return 0x0000
-    test_crc = 0xFFFF  # 预置1个16位的寄存器为十六进制FFFF（即全为1），称此寄存器为CRC寄存器；
-    poly = 0xa001
-    # poly=0x8005
-    while (1):
-        test_crc = (data & 0xFF) ^ test_crc  # 把第一个8位二进制数据（既通讯信息帧的第一个字节）与16位的CRC寄存器的低8位相异或，把结果放于CRC寄存器，高八位数据不变；
-        """
-        （3）、把CRC寄存器的内容右移一位（朝低位）用0填补最高位，并检查右移后的移出位；
-        （4）、如果移出位为0：重复第3步（再次右移一位）；如果移出位为1，CRC寄存器与多
-            项式A001（1010 0000 0000 0001）进行异或；
-        """
-        # 右移动
-        for bit in range(8):
-            if (test_crc & 0x1) != 0:
-                test_crc >>= 1
-                test_crc ^= poly
-            else:
-                test_crc >>= 1
-        data >>= 8
-        if data == 0x00:
-            return test_crc
 
 ser = serial.Serial()
 ser.port = "COM4"
@@ -101,32 +78,35 @@ except Exception as ex:
     exit()
 
 if ser.isOpen():
+    ser.flushInput()  # flush input buffer
+    ser.flushOutput()  # flush output buffer
 
-    try:
-        ser.flushInput()  # flush input buffer
-        ser.flushOutput()  # flush output buffer
+    cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x02]
+    hi_c = crc16(cmd_read_temp, 0, 6) >> 8
+    lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
+    cmd_read_temp.append(hi_c)
+    cmd_read_temp.append(lo_c)
+    while (1):
+        try:
+            ser.write(cmd_read_temp)
+            print("Read Temp:", cmd_read_temp)
+            time.sleep(0.2)  # wait 0.5s
+            response = ser.read(32)
 
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x02]
-        hi_c = crc16(cmd_read_temp, 0, 6) >> 8
-        lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
-        cmd_read_temp.append(hi_c)
-        cmd_read_temp.append(lo_c)
-        ser.write(cmd_read_temp)
-        print("Read Temp:", cmd_read_temp)
-        time.sleep(0.2)  # wait 0.5s
-        response = ser.read(32)
+            # print("read byte data:", response.hex())
+            read_temp, heat_temp = 0, 0
+            if (response[2] == 0x04):
+                read_temp = ((response[3] << 8) + response[4])/100
+                heat_temp = ((response[5] << 8) + response[6])/100
+            print("紅外線量測溫度:", read_temp)
+            print("探頭線量測溫度:", heat_temp)
 
-        # print("read byte data:", response.hex())
-        read_temp, heat_temp = 0, 0
-        if (response[2] == 0x04):
-            read_temp = ((response[3] << 8) + response[4])/100
-            heat_temp = ((response[5] << 8) + response[6])/100
-        print("紅外線量測溫度:", read_temp)
-        print("探頭線量測溫度:", heat_temp)
+        except Exception as e1:
+            print("communicating error " + str(e1))
+            ser.close()
 
-        ser.close()
-    except Exception as e1:
-        print("communicating error " + str(e1))
-
+        time.sleep(0.5)
+    ser.close()
 else:
     print("open serial port error")
+
