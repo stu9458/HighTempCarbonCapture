@@ -87,15 +87,18 @@ ser.dsrdtr  = False  # disable hardware (DSR/DTR) flow control
 fun1_exit_flag = threading.Event()
 fun2_exit_flag = threading.Event()
 fun3_exit_flag = threading.Event()
+fun4_exit_flag = threading.Event()
 
 log_fun1 = False
 log_fun2 = False
 log_fun3 = False
+log_fun4 = False
 
 # 設定 fun1的函数
 fun1_thread = None  # 目前溫度
 fun2_thread = None  # SSR
 fun3_thread = None  # 加熱時間
+fun4_thread = None  # 冷卻時間
 
 def crc16(data, ifrom, ito) :
     uchCRCHi = 0xff
@@ -131,9 +134,11 @@ def SSR_off():
     print("SSR off")
 
 def update_heat_time(wtime):
-    heat_time_entry.delete(0, 'end')
-    heat_time_entry.insert(0, wtime)
+    heat_time_label['text'] = str(wtime)
     # print('time: ', strftime("%M:%S", gmtime()))
+
+def update_cooling_time(wtime):
+    cooling_time_label['text'] = str(wtime)
 
 def set_PWM_dc():
     print("OKOK")
@@ -227,11 +232,13 @@ def Stop(r):
     exit_program(r)
 
 def exit_program(root):
-    global fun1_thread, fun2_thread
+    global fun1_thread, fun2_thread, fun3_thread
     if fun1_thread:
         stop_fun1()
     if fun2_thread:
         stop_fun2()
+    if fun3_thread:
+        stop_fun3()
     # root.quit()
 def fun1():
     global elapsed_time, estimated_heat_time, fun1_thread
@@ -253,7 +260,6 @@ def fun1():
 
 def fun2():
     global input_temperature, heat_time
-    # heat_time = datetime.now() #開始加熱時間
     while not fun2_exit_flag.is_set():
         if log_fun2:
             print("執行 fun2:SSR 執行序...")
@@ -262,6 +268,31 @@ def fun2():
             # print("temp: ", temp)
             # print("input_temperature: ", input_temperature)
             Update_Current_Temperature(f'{temp:.1f}')
+        sleep(1)
+def fun3():
+    global heat_time, elapsed_time
+    current_time = time()
+    while not fun3_exit_flag.is_set():
+        elapsed_time = int(time() - current_time)
+        if log_fun3:
+            print("執行 fun3:加熱時間 執行序...")
+            print(f'elapsed_time: {elapsed_time}')
+        sleep(1)
+
+def fun4():
+    global elapsed_time
+
+    current_time = time()
+    while not fun4_exit_flag.is_set():
+        elapsed_time = int(time() - current_time)
+        if log_fun4:
+            print("執行 fun4:冷卻時間確認 執行序...")
+            print(f'elapsed_time: {elapsed_time}')
+        temp = Get_Temperature()
+        if (temp != None):
+            Update_Current_Temperature(f'{temp:.1f}')
+        mins, secs = divmod(elapsed_time, 60)
+        update_cooling_time(f'{mins}:{secs}')
         sleep(1)
 
 # run fun1的函数
@@ -278,6 +309,24 @@ def start_fun2():
     fun2_thread.start()
     # STOP_button.configure(bg="red")
 
+def start_fun3():
+    global fun3_thread
+    fun3_exit_flag.clear()
+    fun3_thread = threading.Thread(target=fun3, daemon=True)
+    fun3_thread.start()
+
+def start_fun4():
+    global fun4_thread
+    try:
+        ser.open()
+    except Exception as ex:
+        print("open serial port error " + str(ex))
+        exit()
+
+    fun4_exit_flag.clear()
+    fun4_thread = threading.Thread(target=fun4, daemon=True)
+    fun4_thread.start()
+
 def stop_fun1():
     global fun1_thread
     fun1_exit_flag.set()
@@ -289,6 +338,23 @@ def stop_fun2():
     fun2_exit_flag.set()
     fun2_thread.join()  # wait for thread stop
     print("fun2:SSR has stopped.")
+
+def stop_fun3():
+    global fun3_thread
+    fun3_exit_flag.set()
+    fun3_thread.join()  # wait for thread stop
+    print("fun3:heat_time has stopped.")
+
+def stop_fun4():
+    global fun4_thread
+    if fun4_thread:
+        ser.close()
+        fun4_exit_flag.set()
+        fun4_thread.join()  # wait for thread stop
+        print("fun4:Cooling time counter has stopped.")
+
+def get_total_seconds(minutes, seconds):
+    return minutes * 60 + seconds
 
 ##### 主要視窗設定
 root = tk.Tk()
@@ -303,10 +369,8 @@ entry_width=10
 # 加熱時間
 w_row = 0
 w_column = 0
-# heat_time_entry = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
-# heat_time_entry.grid(column=w_column, row=w_row)
-heat_time_entry = tk.Entry(display_data_region, width=entry_width, borderwidth=1, relief="solid")
-heat_time_entry.grid(column=w_column, row=w_row)
+heat_time_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid")
+heat_time_label.grid(column=w_column, row=w_row)
 
 w_row = 1
 w_lable = tk.Label(display_data_region, text='Heating Time(mins)', borderwidth=0, relief="solid")
@@ -315,7 +379,7 @@ w_lable.grid(column=w_column, row=w_row)
 # 當前溫度
 w_row = 2
 w_column = 0
-current_temperature_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
+current_temperature_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid")
 current_temperature_label.grid(column=w_column, row=w_row, pady=2)
 
 w_row = 3
@@ -350,8 +414,8 @@ w_lable.grid(column=w_column, row=w_row, pady=2)
 # 冷卻時間
 w_row = 0
 w_column = 2
-cooling_time_entry = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
-cooling_time_entry.grid(column=w_column, row=w_row)
+cooling_time_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid")
+cooling_time_label.grid(column=w_column, row=w_row)
 
 w_row = 1
 w_column = 2
@@ -459,11 +523,11 @@ setting_data_region.pack(side='left', anchor='w')
 # 開始運行/停止運行-按鈕
 w_row = 8
 w_column = 0
-START_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command=lambda: [Start(), start_fun1(), start_fun2()])
+START_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command=lambda: [Start(), start_fun1(), start_fun2(), start_fun3(), stop_fun4()])
 START_button.grid(column=w_column, row=w_row)
 w_row = 8
 w_column = 1
-STOP_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command=lambda: Stop(root))
+STOP_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command=lambda: [Stop(root), start_fun4()])
 STOP_button.grid(column=w_column, row=w_row)
 setting_data_region.pack(side='top', anchor='w')
 
