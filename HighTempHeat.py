@@ -220,10 +220,8 @@ def Start():
     try:
         ser.open()
     except Exception as ex:
-        print("open serial port error " + str(ex))
+        print("溫度感測模組未插入(open serial port error) " + str(ex))
         exit()
-    # relay_on()
-    # SSR_on()
 
     Heating_on()
     Reserve_on()
