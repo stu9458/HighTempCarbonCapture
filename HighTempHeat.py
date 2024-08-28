@@ -14,11 +14,6 @@ VoltageChangePin = 26 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
 HeatingPin = 20 # Broadcom pin 17 (P1 pin 11)
 ReservePin = 21 # Broadcom pin 27 (P1 pin 13)
 
-GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
-GPIO.setup(HeatingPin, GPIO.OUT) # LED pin set as output
-GPIO.setup(ReservePin, GPIO.OUT) # LED pin set as output
-GPIO.setup(VoltageChangePin, GPIO.OUT) # PWM pin set as output
-
 auchCRCHi = [ 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
  0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
  0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01,
@@ -117,22 +112,28 @@ def GetShortFromBigEndianArray(data, sindex):
     return 0
 
 def Reserve_on():
-    GPIO.output(ReservePin, GPIO.HIGH)
-    print("Relay on")
+    GPIO.output(ReservePin, GPIO.LOW)
+    print("[Status]預留Relay開啟")
 
 def Reserve_off():
-    GPIO.output(ReservePin, GPIO.LOW)
-    print("Relay off")
+    GPIO.output(ReservePin, GPIO.HIGH)
+    print("[Status]預留Relay關閉")
 
 def Heating_on():
-    GPIO.output(VoltageChangePin, GPIO.HIGH)
-    GPIO.output(HeatingPin, GPIO.HIGH)
-    print("Heating on")
+    GPIO.output(HeatingPin, GPIO.LOW)
+    print("[Status]開始加熱")
 
 def Heating_off():
+    GPIO.output(HeatingPin, GPIO.HIGH)
+    print("[Status]停止加熱")
+
+def VoltageChange_on():
     GPIO.output(VoltageChangePin, GPIO.LOW)
-    GPIO.output(HeatingPin, GPIO.LOW)
-    print("Heating off")
+    print("[Status]切換到48V")
+
+def VoltageChange_off():
+    GPIO.output(VoltageChangePin, GPIO.HIGH)
+    print("[Status]切換到36V")
 
 def update_heat_time(wtime):
     heat_time_label['text'] = str(wtime)
@@ -140,21 +141,6 @@ def update_heat_time(wtime):
 
 def update_cooling_time(wtime):
     cooling_time_label['text'] = str(wtime)
-
-def set_PWM_dc():
-    print("OKOK")
-    # global dc, wind_watt
-    # # w_wind_LPM = int(wind_LPM_Scale.get())
-    # # if w_wind_LPM > 2000:
-    # #     update_wind_LPM_Scale('2000')
-    # # elif w_wind_LPM < 100:
-    # #     update_wind_LPM_Scale('100')
-    # lpm = get_wind_LPM_to_watt_and_pwm(int(wind_LPM_Scale.get()))
-    # wind_watt = lpm[0]
-    # dc = lpm[1]
-    # print(f'dc: {dc}, wind_watt:{wind_watt}')
-    # # msg = messagebox.showinfo("LPM",f"LPM:{lpm} watt:{wind_watt}")
-    # pwm.start(dc)
 
 def set_heat_time():
     global input_heating_time
@@ -179,7 +165,7 @@ def Get_Temperature():
         ser.flushInput()  # flush input buffer
         ser.flushOutput() # flush output buffer
 
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x02]
+        cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
         hi_c = crc16(cmd_read_temp, 0, 6) >> 8
         lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
         cmd_read_temp.append(hi_c)
@@ -187,16 +173,56 @@ def Get_Temperature():
         try:
             ser.write(cmd_read_temp)
             sleep(0.1)  # wait 0.1s
-            response = ser.read(32)
+            response = ser.read(68)
 
             # print("read byte data:", response.hex())
             read_temp, heat_temp = 0, 0
-            if (response[2] == 0x04):
-                read_temp = ((response[3] << 8) + response[4]) / 100
-                heat_temp = ((response[5] << 8) + response[6]) / 100
-            # print("紅外線量測溫度:", read_temp)
-            # print("探頭線量測溫度:", heat_temp)
-            return heat_temp
+            if (response[2] == 12):
+                read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
+                heat_temp = ((response[7] << 8) + response[8]) / 100
+                print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
+
+            return read_temp
+
+        except Exception as e1:
+            print("communicating error " + str(e1))
+            ser.close()
+
+def Get_Current_Power():
+    if ser.isOpen():
+        ser.flushInput()  # flush input buffer
+        ser.flushOutput() # flush output buffer
+
+        cmd_read_AT2P = [0x37, 0x03, 0x00, 0xAA, 0x00, 0x0e]
+        hi_c = crc16(cmd_read_AT2P, 0, 6) >> 8
+        lo_c = crc16(cmd_read_AT2P, 0, 6) & 0x00ff
+        cmd_read_AT2P.append(hi_c)
+        cmd_read_AT2P.append(lo_c)
+        try:
+            ser.write(cmd_read_AT2P)
+            sleep(0.1)  # wait 0.1s
+            response = ser.read(132)
+
+            read_power = 0
+            if (response[2] == 28):
+                # 電壓
+                read_vol = (response[3] * 100) >> 24
+                read_vol += (response[4] * 100) >> 16 & 0x00ff00
+                read_vol += (response[5] * 100) >> 8 & 0x0000ff
+                read_vol += (response[6] * 100) & 0x0000ff
+                # 電流
+                read_amp = (response[7] * 100) >> 24
+                read_amp += (response[8] * 100) >> 16 & 0x00ff00
+                read_amp += (response[9] * 100) >> 8 & 0x0000ff
+                read_amp += (response[10] * 100) & 0x0000ff
+                # 功率
+                read_power = (response[11] * 100) >> 24
+                read_power += (response[12] * 100) >> 16 & 0x00ff00
+                read_power += (response[13] * 100) >> 8 & 0x0000ff
+                read_power += (response[14] * 100) & 0x0000ff
+
+                print(f"量測功率: {read_power}. 量測電壓:{read_vol}. 量測電流:{read_amp}")
+            return read_power
 
         except Exception as e1:
             print("communicating error " + str(e1))
@@ -215,21 +241,34 @@ def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
     cooling_light.delete()
     cooling_light.create_oval(5, 5, 20, 20, width=2, fill=cooling_color, outline=cooling_color)
 
+def init():
+    GPIO.cleanup()
+    GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
+    GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
+    VoltageChange_off()
+    Heating_off()
+    Reserve_off()
+
 def Start():
     Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
     try:
         ser.open()
     except Exception as ex:
         print("溫度感測模組未插入(open serial port error) " + str(ex))
+        GPIO.cleanup()
         exit()
 
+    VoltageChange_on()
     Heating_on()
     Reserve_on()
 
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
-    Reserve_off()
+    VoltageChange_off()
     Heating_off()
+    Reserve_off()
     ser.close()
     exit_program(r)
 
@@ -266,6 +305,7 @@ def fun2(): #進行加熱(同時更新溫度)Thread
         if log_fun2:
             print("執行 fun2:Heating 執行序...")
         temp = Get_Temperature()
+        # current_power = Get_Current_Power()
         if (temp != None):
             # print("temp: ", temp)
             # print("input_temperature: ", input_temperature)
@@ -283,7 +323,6 @@ def fun3(): # 更新當前加熱時間，回傳給fun1()
 
 def fun4():
     global elapsed_time
-
     current_time = time()
     while not fun4_exit_flag.is_set():
         elapsed_time = int(time() - current_time)
@@ -323,6 +362,7 @@ def start_fun4():
         ser.open()
     except Exception as ex:
         print("open serial port error " + str(ex))
+        GPIO.cleanup()
         exit()
 
     fun4_exit_flag.clear()
@@ -361,7 +401,7 @@ def get_total_seconds(minutes, seconds):
 ##### 主要視窗設定
 root = tk.Tk()
 root.title("高溫感應式加熱模組電控")
-root.geometry('600x320')
+root.geometry('600x350')
 
 display_data_region = tk.LabelFrame(root, text='顯示區域', padx=10, pady=10)
 display_data_region.place(x=0, y=0)
@@ -532,6 +572,30 @@ w_column = 1
 STOP_button = tk.Button(setting_data_region, text="STOP", bg="#FF0000", command=lambda: [Stop(root), start_fun4()])
 STOP_button.grid(column=w_column, row=w_row)
 setting_data_region.pack(side='top', anchor='w')
+
+# 低壓加溫/高壓加溫模式切換按鈕
+w_row = 8
+w_column = 2
+Voltage48_button = tk.Button(setting_data_region, text="48v模式", bg="#00AAFF", command=VoltageChange_on)
+Voltage48_button.grid(column=w_column, row=w_row)
+w_row = 9
+w_column = 2
+Voltage36_button = tk.Button(setting_data_region, text="36v模式", bg="#007700", command=VoltageChange_off)
+Voltage36_button.grid(column=w_column, row=w_row)
+setting_data_region.pack(side='top', anchor='w')
+
+# 加溫模式切換按鈕
+w_row = 8
+w_column = 3
+HeatingOn_button = tk.Button(setting_data_region, text="加熱開啟", bg="#00AAFF", command=Heating_on)
+HeatingOn_button.grid(column=w_column, row=w_row)
+w_row = 9
+w_column = 3
+HeatingOff_button = tk.Button(setting_data_region, text="停止加熱", bg="#007700", command=Heating_off)
+HeatingOff_button.grid(column=w_column, row=w_row)
+setting_data_region.pack(side='top', anchor='w')
+
+init()
 
 # main
 root.mainloop()
