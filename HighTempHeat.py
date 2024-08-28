@@ -2,23 +2,22 @@
 
 # External module imports
 import serial
-from time import sleep, time
 import tkinter as tk
 import threading
-# import RPi.GPIO as GPIO
+import RPi.GPIO as GPIO
 from time import time, sleep
 from datetime import datetime
 from tkinter import messagebox
-# import spidev
+import spidev
 
-PWMPin = 13 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
-SSRPin = 17 # Broadcom pin 17 (P1 pin 11)
-relayPin = 27 # Broadcom pin 27 (P1 pin 13)
+VoltageChangePin = 26 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
+HeatingPin = 20 # Broadcom pin 17 (P1 pin 11)
+ReservePin = 21 # Broadcom pin 27 (P1 pin 13)
 
-# GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
-# GPIO.setup(SSRPin, GPIO.OUT) # LED pin set as output
-# GPIO.setup(relayPin, GPIO.OUT) # LED pin set as output
-# GPIO.setup(PWMPin, GPIO.OUT) # PWM pin set as output
+GPIO.setmode(GPIO.BCM) # Broadcom pin-numbering scheme
+GPIO.setup(HeatingPin, GPIO.OUT) # LED pin set as output
+GPIO.setup(ReservePin, GPIO.OUT) # LED pin set as output
+GPIO.setup(VoltageChangePin, GPIO.OUT) # PWM pin set as output
 
 auchCRCHi = [ 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
  0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
@@ -59,8 +58,8 @@ auchCRCLo = [ 0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 
  0x40]
 
 ser = serial.Serial()
-ser.port = "COM4"
-# ser.port = "/dev/ttyUSB0"
+# ser.port = "COM4"
+ser.port = "/dev/ttyUSB0"
 
 input_temperature = 80.0
 temperature_max = 0
@@ -96,7 +95,7 @@ log_fun4 = False
 
 # 設定 fun1的函数
 fun1_thread = None  # 目前溫度
-fun2_thread = None  # SSR
+fun2_thread = None  # Heating
 fun3_thread = None  # 加熱時間
 fun4_thread = None  # 冷卻時間
 
@@ -117,21 +116,23 @@ def GetShortFromBigEndianArray(data, sindex):
         return bb
     return 0
 
-def relay_on():
-    GPIO.output(relayPin, GPIO.HIGH)
+def Reserve_on():
+    GPIO.output(ReservePin, GPIO.HIGH)
     print("Relay on")
 
-def relay_off():
-    GPIO.output(relayPin, GPIO.LOW)
+def Reserve_off():
+    GPIO.output(ReservePin, GPIO.LOW)
     print("Relay off")
 
-def SSR_on():
-    GPIO.output(SSRPin, GPIO.HIGH)
-    print("SSR on")
+def Heating_on():
+    GPIO.output(VoltageChangePin, GPIO.HIGH)
+    GPIO.output(HeatingPin, GPIO.HIGH)
+    print("Heating on")
 
-def SSR_off():
-    GPIO.output(SSRPin, GPIO.LOW)
-    print("SSR off")
+def Heating_off():
+    GPIO.output(VoltageChangePin, GPIO.LOW)
+    GPIO.output(HeatingPin, GPIO.LOW)
+    print("Heating off")
 
 def update_heat_time(wtime):
     heat_time_label['text'] = str(wtime)
@@ -224,10 +225,13 @@ def Start():
     # relay_on()
     # SSR_on()
 
+    Heating_on()
+    Reserve_on()
+
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
-    # relay_off()
-    # SSR_off()
+    Reserve_off()
+    Heating_off()
     ser.close()
     exit_program(r)
 
@@ -240,7 +244,7 @@ def exit_program(root):
     if fun3_thread:
         stop_fun3()
     # root.quit()
-def fun1():
+def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時間
     global elapsed_time, estimated_heat_time, fun1_thread
     while not fun1_exit_flag.is_set():
         if log_fun1:
@@ -258,18 +262,18 @@ def fun1():
             break
         sleep(1)
 
-def fun2():
+def fun2(): #進行加熱(同時更新溫度)Thread
     global input_temperature, heat_time
     while not fun2_exit_flag.is_set():
         if log_fun2:
-            print("執行 fun2:SSR 執行序...")
+            print("執行 fun2:Heating 執行序...")
         temp = Get_Temperature()
         if (temp != None):
             # print("temp: ", temp)
             # print("input_temperature: ", input_temperature)
             Update_Current_Temperature(f'{temp:.1f}')
         sleep(1)
-def fun3():
+def fun3(): # 更新當前加熱時間，回傳給fun1()
     global heat_time, elapsed_time
     current_time = time()
     while not fun3_exit_flag.is_set():
@@ -337,7 +341,7 @@ def stop_fun2():
     global fun2_thread
     fun2_exit_flag.set()
     fun2_thread.join()  # wait for thread stop
-    print("fun2:SSR has stopped.")
+    print("fun2:Heating has stopped.")
 
 def stop_fun3():
     global fun3_thread
