@@ -187,46 +187,39 @@ def Get_Temperature():
         except Exception as e1:
             print("communicating error " + str(e1))
             ser.close()
+            sleep(1)
+            ser.open()
 
 def Get_Current_Power():
     if ser.isOpen():
         ser.flushInput()  # flush input buffer
         ser.flushOutput() # flush output buffer
 
-        cmd_read_AT2P = [0x37, 0x03, 0x00, 0xAA, 0x00, 0x0e]
-        hi_c = crc16(cmd_read_AT2P, 0, 6) >> 8
-        lo_c = crc16(cmd_read_AT2P, 0, 6) & 0x00ff
-        cmd_read_AT2P.append(hi_c)
+        cmd_read_AT2P = [0xAA, 0x37, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        hi_c = crc16(cmd_read_AT2P, 0, 9) >> 8
+        lo_c = crc16(cmd_read_AT2P, 0, 9)  & 0x00ff
         cmd_read_AT2P.append(lo_c)
+        cmd_read_AT2P.append(hi_c)
+        cmd_read_AT2P.append(0xFF)
         try:
             ser.write(cmd_read_AT2P)
             sleep(0.1)  # wait 0.1s
-            response = ser.read(132)
+            response = ser.read(42)
+            # 電壓
+            read_vol = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6] << 0)) / 100
+            # 電流
+            read_amp = ((response[7] << 24) + (response[8] << 16) + (response[9] << 8) + (response[10] << 0)) / 1000
+            # 功率
+            read_power = ((response[11] << 24) + (response[12] << 16) + (response[13] << 8) + (response[14] << 0)) / 100
 
-            read_power = 0
-            if (response[2] == 28):
-                # 電壓
-                read_vol = (response[3] * 100) >> 24
-                read_vol += (response[4] * 100) >> 16 & 0x00ff00
-                read_vol += (response[5] * 100) >> 8 & 0x0000ff
-                read_vol += (response[6] * 100) & 0x0000ff
-                # 電流
-                read_amp = (response[7] * 100) >> 24
-                read_amp += (response[8] * 100) >> 16 & 0x00ff00
-                read_amp += (response[9] * 100) >> 8 & 0x0000ff
-                read_amp += (response[10] * 100) & 0x0000ff
-                # 功率
-                read_power = (response[11] * 100) >> 24
-                read_power += (response[12] * 100) >> 16 & 0x00ff00
-                read_power += (response[13] * 100) >> 8 & 0x0000ff
-                read_power += (response[14] * 100) & 0x0000ff
-
-                print(f"量測功率: {read_power}. 量測電壓:{read_vol}. 量測電流:{read_amp}")
+            print(f"量測功率: {read_power}. 量測電壓:{read_vol}. 量測電流:{read_amp}")
             return read_power
 
         except Exception as e1:
             print("communicating error " + str(e1))
             ser.close()
+            sleep(1)
+            ser.open()
 
 def Update_Current_Temperature(temp):
     global current_temperature_label

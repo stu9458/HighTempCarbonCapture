@@ -81,8 +81,6 @@ def Get_Current_Power():
             ser.write(cmd_read_AT2P)
             sleep(0.1)  # wait 0.1s
             response = ser.read(42)
-
-            read_power = 0
             # 電壓
             read_vol = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6] << 0)) / 100
             # 電流
@@ -122,7 +120,7 @@ def Get_Temperature():
 
         except Exception as e1:
             print("communicating error " + str(e1))
-            ser.close()
+            # ser.close()
 
 try:
     ser.open()
@@ -131,7 +129,7 @@ try:
         Get_Current_Power()
         sleep(1)
 except Exception as ex:
-    print("溫度感測模組未插入(open serial port error) " + str(ex))
+    print("溫度感測模組或功率錶頭未插入(open serial port error) " + str(ex))
     exit()
 
 
