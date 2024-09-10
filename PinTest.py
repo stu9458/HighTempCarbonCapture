@@ -31,8 +31,8 @@ GPIO.setup(VoltageChangePin, GPIO.OUT) # PWM pin set as output
 # ADS.setComparatorThresholdLow(int(1.5 / f))    # 1.5V
 # ADS.setComparatorThresholdHigh(int(2.5 / f))   # 2.5V
 
-Relay1_delay_sec_list = [20, 15] # 低壓加溫20秒、高壓加溫10秒
-Relay2_delay_sec_list = [35, 70] # High不加熱、Low加熱
+Relay1_delay_sec_list = [20,  25] # 低壓加溫20秒、高壓加溫10秒
+Relay2_delay_sec_list = [45, 135] # High不加熱、Low加熱
 Relay1_sec_count = 0
 Relay2_sec_count = 0
 Relay1_status = 0
