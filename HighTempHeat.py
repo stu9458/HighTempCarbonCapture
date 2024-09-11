@@ -302,10 +302,10 @@ def fun2(): #進行加熱(同時更新溫度)Thread
         if log_fun2:
             print("執行 fun2:Heating 執行序...")
         temp = Get_Temperature()
-        # current_power = Get_Current_Power()
-        if (temp != None):
+        current_power = Get_Current_Power()
+        if (temp != None and current_power != None):
             Update_Current_Temperature(f'{temp:.1f}')
-            # Update_Current_Power(f'{current_power:.1f}')
+            Update_Current_Power(f'{current_power:.1f}')
         sleep(1)
 def fun3(): # 更新當前加熱時間，回傳給fun1()
     global heat_time, elapsed_time
@@ -326,10 +326,10 @@ def fun4():
             print("執行 fun4:冷卻時間確認 執行序...")
             print(f'elapsed_time: {elapsed_time}')
         temp = Get_Temperature()
-        # current_power = Get_Current_Power()
-        if (temp != None):
+        current_power = Get_Current_Power()
+        if (temp != None and current_power != None):
             Update_Current_Temperature(f'{temp:.1f}')
-            # Update_Current_Power(f'{current_power:.1f}')
+            Update_Current_Power(f'{current_power:.1f}')
         mins, secs = divmod(elapsed_time, 60)
         update_cooling_time(f'{mins}:{secs}')
         sleep(1)
