@@ -31,7 +31,7 @@ GPIO.setup(VoltageChangePin, GPIO.OUT) # PWM pin set as output
 # ADS.setComparatorThresholdLow(int(1.5 / f))    # 1.5V
 # ADS.setComparatorThresholdHigh(int(2.5 / f))   # 2.5V
 
-Relay1_delay_sec_list = [20,  25] # 低壓加溫20秒、高壓加溫10秒
+Relay1_delay_sec_list = [ 0,  25] # 低壓加溫20秒、高壓加溫25秒
 Relay2_delay_sec_list = [45, 135] # High不加熱、Low加熱
 Relay1_sec_count = 0
 Relay2_sec_count = 0
@@ -40,14 +40,13 @@ Relay2_status = 0
 Unactivated = GPIO.HIGH
 Activated   = GPIO.LOW
 
+GPIO.output(VoltageChangePin, Activated)
+Relay1_status = 1
 while True :
-    # val_0 = ADS.readADC(0)
-    # volt_0 = val_0 * f
-    # print("Analog0: {0:d}\t{1:.3f}V".format(val_0, volt_0))
-    if (Relay1_status == 0): #Voltage Low
-        GPIO.output(VoltageChangePin, Unactivated)
-    elif (Relay1_status == 1): #Voltage High
-        GPIO.output(VoltageChangePin, Activated)
+    # if (Relay1_status == 0): #Voltage Low
+    #     GPIO.output(VoltageChangePin, Unactivated)
+    # elif (Relay1_status == 1): #Voltage High
+    #     GPIO.output(VoltageChangePin, Activated)
 
     if (Relay2_status == 0): #Heating Off
         GPIO.output(HeatingPin, Unactivated)
@@ -56,20 +55,20 @@ while True :
     elif (Relay2_status == 2): #Heating Off
         GPIO.output(HeatingPin, Unactivated)
 
-    if (Relay1_sec_count >= Relay1_delay_sec_list[Relay1_status]):
-        Relay1_sec_count = 0
-        Relay1_status = Relay1_status+1
+    # if (Relay1_sec_count >= Relay1_delay_sec_list[Relay1_status]):
+    #     Relay1_sec_count = 0
+    #     Relay1_status = Relay1_status+1
 
     if (Relay2_sec_count >= Relay2_delay_sec_list[Relay2_status]):
         Relay2_sec_count = 0
         Relay2_status = Relay2_status+1
 
-    if (Relay1_status >= len(Relay1_delay_sec_list)):
-        Relay1_status = 0
+    # if (Relay1_status >= len(Relay1_delay_sec_list)):
+    #     Relay1_status = 0
     if (Relay2_status >= len(Relay2_delay_sec_list)):
         Relay2_status = 0
 
-    print(f'１號Relay當前狀態：{Relay1_status}. 當前狀態秒數：{Relay1_sec_count}. ２號Relay當前狀態：{Relay2_status}. 當前狀態秒數：{Relay2_sec_count}')
+    print(f'１號Relay狀態：{Relay1_status}. 秒數：{Relay1_sec_count}. ２號Relay狀態：{Relay2_status}. 秒數：{Relay2_sec_count}')
 
     Relay1_sec_count = Relay1_sec_count + 1
     Relay2_sec_count = Relay2_sec_count + 1
