@@ -185,7 +185,7 @@ def Get_Temperature():
             return read_temp
 
         except Exception as e1:
-            print("communicating error " + str(e1))
+            print("溫度讀取失敗，檢查紅外線溫度檢測線 " + str(e1))
             ser.close()
             sleep(1)
             ser.open()
@@ -216,7 +216,7 @@ def Get_Current_Power():
             return read_power
 
         except Exception as e1:
-            print("communicating error " + str(e1))
+            print("功率檢測失敗，檢查功率檢測信號線 " + str(e1))
             ser.close()
             sleep(1)
             ser.open()
