@@ -7,8 +7,6 @@ import threading
 import RPi.GPIO as GPIO
 from time import time, sleep
 from datetime import datetime
-from tkinter import messagebox
-import spidev
 
 VoltageChangePin = 26 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
 HeatingPin = 20 # Broadcom pin 17 (P1 pin 11)
@@ -139,6 +137,10 @@ def update_heat_time(wtime):
     heat_time_label['text'] = str(wtime)
     # print('time: ', strftime("%M:%S", gmtime()))
 
+def update_retaing_time(wtime):
+    retaining_time_label['text'] = str(wtime)
+    # print('time: ', strftime("%M:%S", gmtime()))
+
 def update_cooling_time(wtime):
     cooling_time_label['text'] = str(wtime)
 
@@ -239,34 +241,35 @@ def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
     cooling_light.create_oval(5, 5, 20, 20, width=2, fill=cooling_color, outline=cooling_color)
 
 def init():
-    GPIO.cleanup()
-    GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
-    GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
-    GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
-    GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
-    VoltageChange_off()
-    Heating_off()
-    Reserve_off()
-
+    # GPIO.cleanup()
+    # GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
+    # GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
+    # GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
+    # GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
+    # VoltageChange_off()
+    # Heating_off()
+    # Reserve_off()
+    print("[Initializing]...")
 def Start():
     Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
     try:
-        ser.open()
+        print("[Start]開始作動")
+        # ser.open()
     except Exception as ex:
-        print("溫度感測模組未插入(open serial port error) " + str(ex))
-        GPIO.cleanup()
+        print("[Status]功率感測模組未插入/溫度感測模組未插入 " + str(ex))
+        # GPIO.cleanup()
         exit()
 
-    VoltageChange_on()
-    Heating_on()
-    Reserve_on()
+    # VoltageChange_on()
+    # Heating_on()
+    # Reserve_on()
 
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
-    VoltageChange_off()
-    Heating_off()
-    Reserve_off()
-    ser.close()
+    # VoltageChange_off()
+    # Heating_off()
+    # Reserve_off()
+    # ser.close()
     exit_program(r)
 
 def exit_program(root):
@@ -279,42 +282,73 @@ def exit_program(root):
         stop_fun3()
     # root.quit()
 def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時間
-    global elapsed_time, estimated_heat_time, fun1_thread
+    global elapsed_time, fun1_thread
+    global set_heating_time_value
+    global set_temperature_value, heat_time
+    print("[fun1]執行 fun1:當前溫度更新執行序...")
     while not fun1_exit_flag.is_set():
-        if log_fun1:
-            print("執行 fun1:目前溫度 執行序...")
-        minutes, seconds = map(int, estimated_heat_time.split(':'))
+        minutes, seconds = map(int, set_heating_time_value.get().split(':'))
         mins, secs = divmod(elapsed_time, 60)
+        temp = Get_Temperature()
+        if log_fun1:
+            print(f'時間上限(s):{(minutes * 60 + seconds)}. 當前時間(s):{elapsed_time}. 目標溫度:{float(set_temperature_value.get())}. 當前溫度:{temp}')
 
-        # 更新加熱時間
-        # print(f'加熱時間: {mins}:{secs}')
-        update_heat_time(f'{mins}:{secs}')
-
-        if (mins * 60 + secs) >= (minutes * 60 + seconds):
-            if fun2_thread:
+        if (mins * 60 + secs) >= (minutes * 60 + seconds) or (temp != None and temp >= float(set_temperature_value.get())):
+            if (mins * 60 + secs) >= (minutes * 60 + seconds):
+                print("[fun1]加熱「時限達成」觸發，停止加熱")
+            if (temp != None and temp >= input_temperature):
+                print("[fun1]加熱「溫度達成」觸發，停止加熱")
+            # Heating_off()
+            # VoltageChange_off()
+            # Reserve_off()
+            if fun2_thread and fun3_thread is None:
                 stop_fun2()
-            break
+                start_fun3() #進入持溫
+        else:
+            if fun3_thread and fun2_thread is None:
+                stop_fun3()
+                start_fun2()  # 繼續加熱計算
+                # Heating_on()
+                # VoltageChange_on()
+                # Reserve_on()
+                if (temp != None and temp < float(set_temperature_value.get())):
+                    print("[fun1]目前溫度偏低、持續升溫")
+                if (mins * 60 + secs) < (minutes * 60 + seconds):
+                    print("[fun1]時長調整，持續升溫")
         sleep(1)
 
-def fun2(): #進行加熱(同時更新溫度)Thread
-    global input_temperature, heat_time
+def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」Thread
+    global input_temperature, heat_time, elapsed_time
+    current_time = time()
+    print("[fun2]執行 fun2:進行加熱溫度偵測與加熱時長計算執行序...")
     while not fun2_exit_flag.is_set():
         if log_fun2:
-            print("執行 fun2:Heating 執行序...")
+            print(f'[fun2]加熱經過時長: {elapsed_time}')
+        elapsed_time = int(time() - current_time)
+        mins, secs = divmod(elapsed_time, 60)
+        update_heat_time(f'{mins}:{secs}')#更新加熱時間
         temp = Get_Temperature()
         current_power = Get_Current_Power()
         if (temp != None and current_power != None):
             Update_Current_Temperature(f'{temp:.1f}')
             Update_Current_Power(f'{current_power:.1f}')
         sleep(1)
-def fun3(): # 更新當前加熱時間，回傳給fun1()
-    global heat_time, elapsed_time
+def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」Thread
+    global input_temperature, retaing_time, elapsed_time
+    Pilotlamp_switch(heating_color="red", retaning_color="#00FF00", cooling_color="red")
     current_time = time()
+    print("[fun3]執行 fun3:進行持溫溫度偵測與持溫時長計算執行序...")
     while not fun3_exit_flag.is_set():
-        elapsed_time = int(time() - current_time)
         if log_fun3:
-            print("執行 fun3:加熱時間 執行序...")
-            print(f'elapsed_time: {elapsed_time}')
+            print(f'[fun2]持溫經過時長: {elapsed_time}')
+        elapsed_time = int(time() - current_time)
+        mins, secs = divmod(elapsed_time, 60)
+        update_retaing_time(f'{mins}:{secs}')#更新持溫時間
+        temp = Get_Temperature()
+        current_power = Get_Current_Power()
+        if (temp != None and current_power != None):
+            Update_Current_Temperature(f'{temp:.1f}')
+            Update_Current_Power(f'{current_power:.1f}')
         sleep(1)
 
 def fun4():
@@ -323,8 +357,8 @@ def fun4():
     while not fun4_exit_flag.is_set():
         elapsed_time = int(time() - current_time)
         if log_fun4:
-            print("執行 fun4:冷卻時間確認 執行序...")
-            print(f'elapsed_time: {elapsed_time}')
+            print("[fun4]執行 fun4:冷卻時間確認 執行序...")
+            print(f'[fun4]冷卻經過時長: {elapsed_time}')
         temp = Get_Temperature()
         current_power = Get_Current_Power()
         if (temp != None and current_power != None):
@@ -357,10 +391,11 @@ def start_fun3():
 def start_fun4():
     global fun4_thread
     try:
-        ser.open()
+        print("[fun4]冷卻狀態Start")
+        # ser.open()
     except Exception as ex:
-        print("open serial port error " + str(ex))
-        GPIO.cleanup()
+        print("[fun4]功率感測模組未插入/溫度感測模組未插入。錯誤碼： " + str(ex))
+        # GPIO.cleanup()
         exit()
 
     fun4_exit_flag.clear()
@@ -369,21 +404,27 @@ def start_fun4():
 
 def stop_fun1():
     global fun1_thread
-    fun1_exit_flag.set()
-    fun1_thread.join()  # wait for thread stop
-    print("fun1 has stopped.")
+    if fun1_thread:
+        fun1_exit_flag.set()
+        fun1_thread.join()  # wait for thread stop
+        fun1_thread = None
+        print("[fun1]加熱狀態結束.")
 
 def stop_fun2():
     global fun2_thread
-    fun2_exit_flag.set()
-    fun2_thread.join()  # wait for thread stop
-    print("fun2:Heating has stopped.")
+    if fun2_thread:
+        fun2_exit_flag.set()
+        fun2_thread.join()  # wait for thread stop
+        fun2_thread = None
+        print("[fun2]停止加熱溫度偵測與加熱時長計算.")
 
 def stop_fun3():
     global fun3_thread
-    fun3_exit_flag.set()
-    fun3_thread.join()  # wait for thread stop
-    print("fun3:heat_time has stopped.")
+    if fun3_thread:
+        fun3_exit_flag.set()
+        fun3_thread.join()  # wait for thread stop
+        fun3_thread = None
+        print("[fun3]停止持溫溫度偵測與持溫時長計算.")
 
 def stop_fun4():
     global fun4_thread
@@ -391,7 +432,8 @@ def stop_fun4():
         ser.close()
         fun4_exit_flag.set()
         fun4_thread.join()  # wait for thread stop
-        print("fun4:Cooling time counter has stopped.")
+        fun4_thread = None
+        print("[fun4]冷卻時間計算時間停止.")
 
 def get_total_seconds(minutes, seconds):
     return minutes * 60 + seconds
@@ -427,12 +469,11 @@ w_column = 0
 w_lable = tk.Label(display_data_region, text='Current Temp(°C)', borderwidth=0, relief="solid")
 w_lable.grid(column=0, row=w_row, pady=2)
 
-# create display UI
 # 持溫時間
 w_row = 0
 w_column = 1
-retaining_time_entry = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
-retaining_time_entry.grid(column=w_column, row=w_row)
+retaining_time_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid")
+retaining_time_label.grid(column=w_column, row=w_row)
 
 w_row = 1
 w_column = 1
@@ -450,7 +491,6 @@ w_column = 1
 w_lable = tk.Label(display_data_region, text='Current Power(W)', borderwidth=0, relief="solid")
 w_lable.grid(column=w_column, row=w_row, pady=2)
 
-# create display UI
 # 冷卻時間
 w_row = 0
 w_column = 2
@@ -563,7 +603,7 @@ setting_data_region.pack(side='left', anchor='w')
 # 開始運行/停止運行-按鈕
 w_row = 8
 w_column = 0
-START_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command=lambda: [Start(), start_fun1(), start_fun2(), start_fun3(), stop_fun4()])
+START_button = tk.Button(setting_data_region, text="START", bg="#00FF00", command=lambda: [Start(), start_fun1(), start_fun2(), stop_fun4()])
 START_button.grid(column=w_column, row=w_row)
 w_row = 8
 w_column = 1
