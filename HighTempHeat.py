@@ -285,6 +285,7 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
     global elapsed_time, fun1_thread
     global set_heating_time_value
     global set_temperature_value, heat_time
+    global Cooling_enable, Retaing_enable
     print("[fun1]執行 fun1:當前溫度更新執行序...")
     while not fun1_exit_flag.is_set():
         minutes, seconds = map(int, set_heating_time_value.get().split(':'))
@@ -294,28 +295,38 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
             print(f'時間上限(s):{(minutes * 60 + seconds)}. 當前時間(s):{elapsed_time}. 目標溫度:{float(set_temperature_value.get())}. 當前溫度:{temp}')
 
         if (mins * 60 + secs) >= (minutes * 60 + seconds) or (temp != None and temp >= float(set_temperature_value.get())):
-            if (mins * 60 + secs) >= (minutes * 60 + seconds):
-                print("[fun1]加熱「時限達成」觸發，停止加熱")
-            if (temp != None and temp >= input_temperature):
-                print("[fun1]加熱「溫度達成」觸發，停止加熱")
-            # Heating_off()
-            # VoltageChange_off()
-            # Reserve_off()
-            if fun2_thread and fun3_thread is None:
-                stop_fun2()
-                start_fun3() #進入持溫
+            if (mins * 60 + secs) >= (minutes * 60 + seconds) and (minutes>1 or seconds>1):
+                print("[fun1]加熱「時限達成」觸發，停止加熱、進入冷卻")
+                Cooling_enable = True
+                break
+            # if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())):
+            if (True):
+                if (fun2_thread != None and fun3_thread == None):
+                    print("[fun1]加熱「溫度達成」觸發，停止加熱、進入持溫")
+                    Retaing_enable = True
+                    stop_fun2()
+                    start_fun3()  # 進入持溫
+                    # Heating_off()
+                    # VoltageChange_off()
+                    # Reserve_off()
+
         else:
-            if fun3_thread and fun2_thread is None:
-                stop_fun3()
-                start_fun2()  # 繼續加熱計算
-                # Heating_on()
-                # VoltageChange_on()
-                # Reserve_on()
-                if (temp != None and temp < float(set_temperature_value.get())):
+            if (Retaing_enable == False and temp != None and temp < float(set_temperature_value.get())):
+                if (fun2_thread == None and fun3_thread != None):
                     print("[fun1]目前溫度偏低、持續升溫")
-                if (mins * 60 + secs) < (minutes * 60 + seconds):
-                    print("[fun1]時長調整，持續升溫")
+                    stop_fun3()
+                    start_fun2()  # 繼續加熱計算
+                    # Heating_on()
+                    # VoltageChange_on()
+                    # Reserve_on()
+
+        if (Cooling_enable):
+            break
+        # if (Retaing_enable):
+        #     fun1_exit_flag.clear()
         sleep(1)
+    if (Cooling_enable):
+        start_fun4()
 
 def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」Thread
     global input_temperature, heat_time, elapsed_time
@@ -337,7 +348,7 @@ def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」T
     global input_temperature, retaing_time, elapsed_time
     Pilotlamp_switch(heating_color="red", retaning_color="#00FF00", cooling_color="red")
     current_time = time()
-    print("[fun3]執行 fun3:進行持溫溫度偵測與持溫時長計算執行序...")
+    print("[fun3]進入持溫狀態fun3:持溫溫度偵測與持溫時長計算執行序...")
     while not fun3_exit_flag.is_set():
         if log_fun3:
             print(f'[fun2]持溫經過時長: {elapsed_time}')
@@ -353,7 +364,10 @@ def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」T
 
 def fun4():
     global elapsed_time
+    global Cooling_enable
     current_time = time()
+    if (Cooling_enable):
+        Stop(r=None)
     while not fun4_exit_flag.is_set():
         elapsed_time = int(time() - current_time)
         if log_fun4:
@@ -371,6 +385,8 @@ def fun4():
 # run fun1的函数
 def start_fun1():
     global fun1_thread
+    global Cooling_enable, Retaing_enable
+    Cooling_enable, Retaing_enable = False, False
     fun1_exit_flag.clear()
     fun1_thread = threading.Thread(target=fun1, daemon=True)
     fun1_thread.start()
@@ -437,6 +453,9 @@ def stop_fun4():
 
 def get_total_seconds(minutes, seconds):
     return minutes * 60 + seconds
+
+Cooling_enable = False
+Retaing_enable = False
 
 ##### 主要視窗設定
 root = tk.Tk()
