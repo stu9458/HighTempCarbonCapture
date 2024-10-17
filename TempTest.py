@@ -2,6 +2,8 @@ import threading
 import serial
 import math
 from time import time, sleep
+from datetime import datetime
+import spidev
 
 ser = serial.Serial()
 ser.port = "/dev/ttyUSB0"
@@ -65,6 +67,34 @@ def crc16(data, ifrom, ito) :
         uchCRCLo = auchCRCLo[uindex]
     return (uchCRCHi << 8) | uchCRCLo
 
+def read_max6675(spi_channel, spi_device):
+    spi = spidev.SpiDev()
+    spi.open(spi_channel, spi_device)
+    # spi.mode = 0
+    spi.max_speed_hz = 50000  # You may need to adjust this value based on your hardware
+
+    try:
+        # Read the raw ADC value from the MAX6675
+        adc_data = spi.xfer2([0, 0])
+        # print(f"ADC1:{adc_data[0]}. ADC2:{adc_data[1]}")
+        # Combine the two bytes into a 12-bit value
+        output = ((adc_data[0] & 0x7F) << 5) | (adc_data[1] >> 3)
+
+        # Convert the raw value to Celsius
+        temperature_celsius = output * 0.25
+        temperature_celsius = (temperature_celsius - 2) * 97 / 100
+
+        # Convert to Fahrenheit
+        temperature_fahrenheit = (temperature_celsius * 9 / 5) + 32
+
+        print(f"攝氏溫度: {temperature_celsius:.2f} °C, 華氏溫度：{temperature_fahrenheit:.2f} °F")
+        # return temperature_celsius
+
+    except KeyboardInterrupt:
+        print("Temperature reading stopped.")
+    finally:
+        spi.close()
+
 def Get_Current_Power():
     if ser.isOpen():
         ser.flushInput()  # flush input buffer
@@ -95,32 +125,33 @@ def Get_Current_Power():
             print("communicating error " + str(e1))
             # ser.close()
 def Get_Temperature():
-    if ser.isOpen():
-        ser.flushInput()  # flush input buffer
-        ser.flushOutput() # flush output buffer
-
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
-        hi_c = crc16(cmd_read_temp, 0, 6) >> 8
-        lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
-        cmd_read_temp.append(hi_c)
-        cmd_read_temp.append(lo_c)
-        try:
-            ser.write(cmd_read_temp)
-            sleep(0.1)  # wait 0.1s
-            response = ser.read(68)
-
-            # print("read byte data:", response.hex())
-            read_temp, heat_temp = 0, 0
-            if (response[2] == 12):
-                read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
-                heat_temp = ((response[7] << 8) + response[8]) / 100
-                print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
-
-            return read_temp
-
-        except Exception as e1:
-            print("communicating error " + str(e1))
-            # ser.close()
+    read_max6675(0, 0)
+    # if ser.isOpen():
+    #     ser.flushInput()  # flush input buffer
+    #     ser.flushOutput() # flush output buffer
+    #
+    #     cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
+    #     hi_c = crc16(cmd_read_temp, 0, 6) >> 8
+    #     lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
+    #     cmd_read_temp.append(hi_c)
+    #     cmd_read_temp.append(lo_c)
+    #     try:
+    #         ser.write(cmd_read_temp)
+    #         sleep(0.1)  # wait 0.1s
+    #         response = ser.read(68)
+    #
+    #         # print("read byte data:", response.hex())
+    #         read_temp, heat_temp = 0, 0
+    #         if (response[2] == 12):
+    #             read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
+    #             heat_temp = ((response[7] << 8) + response[8]) / 100
+    #             print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
+    #
+    #         return read_temp
+    #
+    #     except Exception as e1:
+    #         print("communicating error " + str(e1))
+    #         # ser.close()
 
 try:
     ser.open()

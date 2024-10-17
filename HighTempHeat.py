@@ -7,6 +7,7 @@ import threading
 import RPi.GPIO as GPIO
 from time import time, sleep
 from datetime import datetime
+import spidev
 
 VoltageChangePin = 26 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
 HeatingPin = 20 # Broadcom pin 17 (P1 pin 11)
@@ -51,7 +52,6 @@ auchCRCLo = [ 0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 
  0x40]
 
 ser = serial.Serial()
-# ser.port = "COM4"
 ser.port = "/dev/ttyUSB0"
 
 input_temperature = 80.0
@@ -162,35 +162,65 @@ def set_input_temperature():
     print('輸入溫度 input_temperature: ', value)
     set_temperature_value.set(str(value))
 
+def read_max6675(spi_channel, spi_device):
+    spi = spidev.SpiDev()
+    spi.open(spi_channel, spi_device)
+    # spi.mode = 0
+    spi.max_speed_hz = 50000  # You may need to adjust this value based on your hardware
+
+    try:
+        # Read the raw ADC value from the MAX6675
+        adc_data = spi.xfer2([0, 0])
+        # print(f"ADC1:{adc_data[0]}. ADC2:{adc_data[1]}")
+        # Combine the two bytes into a 12-bit value
+        output = ((adc_data[0] & 0x7F) << 5) | (adc_data[1] >> 3)
+
+        # Convert the raw value to Celsius
+        temperature_celsius = output * 0.25
+        temperature_celsius = (temperature_celsius - 2) * 97 / 100
+
+        # Convert to Fahrenheit
+        temperature_fahrenheit = (temperature_celsius * 9 / 5) + 32
+
+        # print(f"攝氏溫度: {temperature_celsius:.2f} °C, 華氏溫度：{temperature_fahrenheit:.2f} °F")
+        return temperature_celsius
+
+    except KeyboardInterrupt:
+        print("Temperature reading stopped.")
+    finally:
+        spi.close()
+
 def Get_Temperature():
-    if ser.isOpen():
-        ser.flushInput()  # flush input buffer
-        ser.flushOutput() # flush output buffer
-
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
-        hi_c = crc16(cmd_read_temp, 0, 6) >> 8
-        lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
-        cmd_read_temp.append(hi_c)
-        cmd_read_temp.append(lo_c)
-        try:
-            ser.write(cmd_read_temp)
-            sleep(0.1)  # wait 0.1s
-            response = ser.read(68)
-
-            # print("read byte data:", response.hex())
-            read_temp, heat_temp = 0, 0
-            if (response[2] == 12):
-                read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
-                heat_temp = ((response[7] << 8) + response[8]) / 100
-                print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
-
-            return read_temp
-
-        except Exception as e1:
-            print("溫度讀取失敗，檢查紅外線溫度檢測線 " + str(e1))
-            ser.close()
-            sleep(1)
-            ser.open()
+    # if ser.isOpen():
+    #     ser.flushInput()  # flush input buffer
+    #     ser.flushOutput() # flush output buffer
+    #
+    #     cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
+    #     hi_c = crc16(cmd_read_temp, 0, 6) >> 8
+    #     lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
+    #     cmd_read_temp.append(hi_c)
+    #     cmd_read_temp.append(lo_c)
+    #     try:
+    #         ser.write(cmd_read_temp)
+    #         sleep(0.1)  # wait 0.1s
+    #         response = ser.read(68)
+    #
+    #         # print("read byte data:", response.hex())
+    #         read_temp, heat_temp = 0, 0
+    #         if (response[2] == 12):
+    #             read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
+    #             heat_temp = ((response[7] << 8) + response[8]) / 100
+    #             print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
+    #
+    #         return read_temp
+    #
+    #     except Exception as e1:
+    #         print("溫度讀取失敗，檢查紅外線溫度檢測線 " + str(e1))
+    #         ser.close()
+    #         sleep(1)
+    #         ser.open()
+    read_temp = read_max6675(0, 0)
+    return read_temp
 
 def Get_Current_Power():
     if ser.isOpen():
@@ -214,14 +244,14 @@ def Get_Current_Power():
             # 功率
             read_power = ((response[11] << 24) + (response[12] << 16) + (response[13] << 8) + (response[14] << 0)) / 100
 
-            print(f"量測功率: {read_power}. 量測電壓:{read_vol}. 量測電流:{read_amp}")
+            # print(f"量測功率: {read_power}W. 量測電壓:{read_vol}V. 量測電流:{read_amp}A")
             return read_power
 
         except Exception as e1:
             print("功率檢測失敗，檢查功率檢測信號線 " + str(e1))
-            ser.close()
-            sleep(1)
-            ser.open()
+            # ser.close()
+            # sleep(1)
+            # ser.open()
 
 def Update_Current_Temperature(temp):
     global current_temperature_label
@@ -241,14 +271,15 @@ def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
     cooling_light.create_oval(5, 5, 20, 20, width=2, fill=cooling_color, outline=cooling_color)
 
 def init():
-    # GPIO.cleanup()
-    # GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
-    # GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
-    # GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
-    # GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
-    # VoltageChange_off()
-    # Heating_off()
-    # Reserve_off()
+    GPIO.cleanup()
+    GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
+    GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
+    ser.open()
+    VoltageChange_off()
+    Heating_off()
+    Reserve_off()
     print("[Initializing]...")
 def Start():
     Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
@@ -257,7 +288,7 @@ def Start():
         # ser.open()
     except Exception as ex:
         print("[Status]功率感測模組未插入/溫度感測模組未插入 " + str(ex))
-        # GPIO.cleanup()
+        GPIO.cleanup()
         exit()
 
     # VoltageChange_on()
@@ -266,10 +297,11 @@ def Start():
 
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
-    # VoltageChange_off()
-    # Heating_off()
-    # Reserve_off()
+    VoltageChange_off()
+    Heating_off()
+    Reserve_off()
     # ser.close()
+    # spidev.SpiDev().close()
     exit_program(r)
 
 def exit_program(root):
@@ -306,9 +338,9 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     Retaing_enable = True
                     stop_fun2()
                     start_fun3()  # 進入持溫
-                    # Heating_off()
-                    # VoltageChange_off()
-                    # Reserve_off()
+                    Heating_off()
+                    VoltageChange_off()
+                    Reserve_off()
 
         else:
             if (Retaing_enable == False and temp != None and temp < float(set_temperature_value.get())):
@@ -316,9 +348,9 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     print("[fun1]目前溫度偏低、持續升溫")
                     stop_fun3()
                     start_fun2()  # 繼續加熱計算
-                    # Heating_on()
-                    # VoltageChange_on()
-                    # Reserve_on()
+                    Heating_on()
+                    VoltageChange_on()
+                    Reserve_on()
 
         if (Cooling_enable):
             break
@@ -340,9 +372,15 @@ def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」T
         update_heat_time(f'{mins}:{secs}')#更新加熱時間
         temp = Get_Temperature()
         current_power = Get_Current_Power()
-        if (temp != None and current_power != None):
+
+        if (temp != None):
             Update_Current_Temperature(f'{temp:.1f}')
+        else:
+            print("溫度檢測錯誤")
+        if (current_power != None):
             Update_Current_Power(f'{current_power:.1f}')
+        else:
+            print("功率檢測錯誤")
         sleep(1)
 def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」Thread
     global input_temperature, retaing_time, elapsed_time
@@ -411,7 +449,7 @@ def start_fun4():
         # ser.open()
     except Exception as ex:
         print("[fun4]功率感測模組未插入/溫度感測模組未插入。錯誤碼： " + str(ex))
-        # GPIO.cleanup()
+        GPIO.cleanup()
         exit()
 
     fun4_exit_flag.clear()
@@ -429,23 +467,26 @@ def stop_fun1():
 def stop_fun2():
     global fun2_thread
     if fun2_thread:
+        print("[fun2]停止加熱溫度偵測與加熱時長計算.")
         fun2_exit_flag.set()
         fun2_thread.join()  # wait for thread stop
         fun2_thread = None
-        print("[fun2]停止加熱溫度偵測與加熱時長計算.")
+        print("[fun2-stop]停止加熱溫度偵測與加熱時長計算.")
+
 
 def stop_fun3():
     global fun3_thread
     if fun3_thread:
+        print("[fun3]停止持溫溫度偵測與持溫時長計算.")
         fun3_exit_flag.set()
         fun3_thread.join()  # wait for thread stop
         fun3_thread = None
-        print("[fun3]停止持溫溫度偵測與持溫時長計算.")
+        print("[fun3-stop]停止持溫溫度偵測與持溫時長計算.")
 
 def stop_fun4():
     global fun4_thread
     if fun4_thread:
-        ser.close()
+        # ser.close()
         fun4_exit_flag.set()
         fun4_thread.join()  # wait for thread stop
         fun4_thread = None
@@ -502,7 +543,7 @@ w_lable.grid(column=w_column, row=w_row, padx=20, pady=2)
 # 目前輸出功率
 w_row = 2
 w_column = 1
-current_power_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
+current_power_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid")
 current_power_label.grid(column=w_column, row=w_row, pady=2)
 
 w_row = 3
