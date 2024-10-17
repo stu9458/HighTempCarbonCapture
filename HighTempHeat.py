@@ -291,9 +291,9 @@ def Start():
         GPIO.cleanup()
         exit()
 
-    # VoltageChange_on()
-    # Heating_on()
-    # Reserve_on()
+    VoltageChange_on()
+    Heating_on()
+    Reserve_on()
 
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
