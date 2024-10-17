@@ -91,6 +91,7 @@ fun1_thread = None  # 目前溫度
 fun2_thread = None  # Heating
 fun3_thread = None  # 加熱時間
 fun4_thread = None  # 冷卻時間
+pre_temp    = 0 # 溫度過濾用
 
 def crc16(data, ifrom, ito) :
     uchCRCHi = 0xff
@@ -109,6 +110,10 @@ def GetShortFromBigEndianArray(data, sindex):
         return bb
     return 0
 
+def Reserve_get():
+    status = GPIO.input(ReservePin)
+    return status
+
 def Reserve_on():
     GPIO.output(ReservePin, GPIO.LOW)
     print("[Status]預留Relay開啟")
@@ -117,6 +122,10 @@ def Reserve_off():
     GPIO.output(ReservePin, GPIO.HIGH)
     print("[Status]預留Relay關閉")
 
+def Heating_get():
+    status = GPIO.input(HeatingPin)
+    return status
+
 def Heating_on():
     GPIO.output(HeatingPin, GPIO.LOW)
     print("[Status]開始加熱")
@@ -124,6 +133,10 @@ def Heating_on():
 def Heating_off():
     GPIO.output(HeatingPin, GPIO.HIGH)
     print("[Status]停止加熱")
+
+def VoltageChange_get():
+    status = GPIO.input(VoltageChangePin)
+    return status
 
 def VoltageChange_on():
     GPIO.output(VoltageChangePin, GPIO.LOW)
@@ -166,13 +179,16 @@ def read_max6675(spi_channel, spi_device):
     spi = spidev.SpiDev()
     spi.open(spi_channel, spi_device)
     # spi.mode = 0
-    spi.max_speed_hz = 50000  # You may need to adjust this value based on your hardware
+    spi.max_speed_hz = 2000000  # You may need to adjust this value based on your hardware
 
     try:
         # Read the raw ADC value from the MAX6675
         adc_data = spi.xfer2([0, 0])
         # print(f"ADC1:{adc_data[0]}. ADC2:{adc_data[1]}")
         # Combine the two bytes into a 12-bit value
+        if (adc_data[1] & 0x04 != 0): # TC開路，偵測失敗
+            print("紅外線TC開路")
+            return None
         output = ((adc_data[0] & 0x7F) << 5) | (adc_data[1] >> 3)
 
         # Convert the raw value to Celsius
@@ -181,7 +197,6 @@ def read_max6675(spi_channel, spi_device):
 
         # Convert to Fahrenheit
         temperature_fahrenheit = (temperature_celsius * 9 / 5) + 32
-
         # print(f"攝氏溫度: {temperature_celsius:.2f} °C, 華氏溫度：{temperature_fahrenheit:.2f} °F")
         return temperature_celsius
 
@@ -191,6 +206,7 @@ def read_max6675(spi_channel, spi_device):
         spi.close()
 
 def Get_Temperature():
+    global pre_temp
     # if ser.isOpen():
     #     ser.flushInput()  # flush input buffer
     #     ser.flushOutput() # flush output buffer
@@ -220,7 +236,15 @@ def Get_Temperature():
     #         sleep(1)
     #         ser.open()
     read_temp = read_max6675(0, 0)
-    return read_temp
+    if (Heating_get() == GPIO.LOW and read_temp < pre_temp-20):
+        return pre_temp
+
+    read_temp = (read_temp + pre_temp)/2
+    if (read_temp != None):
+        pre_temp = read_temp
+    else:
+        return pre_temp
+    return int(read_temp)
 
 def Get_Current_Power():
     if ser.isOpen():
@@ -326,13 +350,14 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
         if log_fun1:
             print(f'時間上限(s):{(minutes * 60 + seconds)}. 當前時間(s):{elapsed_time}. 目標溫度:{float(set_temperature_value.get())}. 當前溫度:{temp}')
 
+        temp_dis = 10
         if (mins * 60 + secs) >= (minutes * 60 + seconds) or (temp != None and temp >= float(set_temperature_value.get())):
             if (mins * 60 + secs) >= (minutes * 60 + seconds) and (minutes>1 or seconds>1):
                 print("[fun1]加熱「時限達成」觸發，停止加熱、進入冷卻")
                 Cooling_enable = True
                 break
-            # if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())):
-            if (True):
+            if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())-temp_dis):
+            # if (True):
                 if (fun2_thread != None and fun3_thread == None):
                     print("[fun1]加熱「溫度達成」觸發，停止加熱、進入持溫")
                     Retaing_enable = True
@@ -343,20 +368,20 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     Reserve_off()
 
         else:
-            if (Retaing_enable == False and temp != None and temp < float(set_temperature_value.get())):
+            if (Retaing_enable == True and temp != None and temp < float(set_temperature_value.get())):
                 if (fun2_thread == None and fun3_thread != None):
                     print("[fun1]目前溫度偏低、持續升溫")
                     stop_fun3()
                     start_fun2()  # 繼續加熱計算
                     Heating_on()
-                    VoltageChange_on()
+                    # VoltageChange_on()
                     Reserve_on()
 
         if (Cooling_enable):
             break
         # if (Retaing_enable):
         #     fun1_exit_flag.clear()
-        sleep(1)
+        sleep(0.5)
     if (Cooling_enable):
         start_fun4()
 
@@ -381,7 +406,7 @@ def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」T
             Update_Current_Power(f'{current_power:.1f}')
         else:
             print("功率檢測錯誤")
-        sleep(1)
+        sleep(0.5)
 def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」Thread
     global input_temperature, retaing_time, elapsed_time
     Pilotlamp_switch(heating_color="red", retaning_color="#00FF00", cooling_color="red")
@@ -398,7 +423,7 @@ def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」T
         if (temp != None and current_power != None):
             Update_Current_Temperature(f'{temp:.1f}')
             Update_Current_Power(f'{current_power:.1f}')
-        sleep(1)
+        sleep(0.5)
 
 def fun4():
     global elapsed_time
@@ -418,7 +443,7 @@ def fun4():
             Update_Current_Power(f'{current_power:.1f}')
         mins, secs = divmod(elapsed_time, 60)
         update_cooling_time(f'{mins}:{secs}')
-        sleep(1)
+        sleep(0.5)
 
 # run fun1的函数
 def start_fun1():
