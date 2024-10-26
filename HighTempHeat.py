@@ -64,7 +64,7 @@ heat_power = 12*7.5                     # 固定加熱功率
 heat_kwh = 0.0                          # 累計加熱功率，度數
 
 # 57600,N,8,1
-ser.baudrate = 57600
+ser.baudrate = 38400
 ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
 ser.parity = serial.PARITY_NONE  # set parity check
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
@@ -207,43 +207,33 @@ def read_max6675(spi_channel, spi_device):
 
 def Get_Temperature():
     global pre_temp
-    # if ser.isOpen():
-    #     ser.flushInput()  # flush input buffer
-    #     ser.flushOutput() # flush output buffer
-    #
-    #     cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
-    #     hi_c = crc16(cmd_read_temp, 0, 6) >> 8
-    #     lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
-    #     cmd_read_temp.append(hi_c)
-    #     cmd_read_temp.append(lo_c)
-    #     try:
-    #         ser.write(cmd_read_temp)
-    #         sleep(0.1)  # wait 0.1s
-    #         response = ser.read(68)
-    #
-    #         # print("read byte data:", response.hex())
-    #         read_temp, heat_temp = 0, 0
-    #         if (response[2] == 12):
-    #             read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
-    #             heat_temp = ((response[7] << 8) + response[8]) / 100
-    #             print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
-    #
-    #         return read_temp
-    #
-    #     except Exception as e1:
-    #         print("溫度讀取失敗，檢查紅外線溫度檢測線 " + str(e1))
-    #         ser.close()
-    #         sleep(1)
-    #         ser.open()
-    read_temp = read_max6675(0, 0)
-    if (Heating_get() == GPIO.LOW and read_temp < pre_temp-20):
-        return pre_temp
+    if ser.isOpen():
+        ser.flushInput()  # flush input buffer
+        ser.flushOutput() # flush output buffer
 
-    read_temp = (read_temp + pre_temp)/2
-    if (read_temp != None):
-        pre_temp = read_temp
-    else:
-        return pre_temp
+        cmd_read_temp = [0x01, 0x03, 0x00, 0x00, 0x00, 0x02]
+        hi_c = crc16(cmd_read_temp, 0, 6) >> 8
+        lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
+        cmd_read_temp.append(hi_c)
+        cmd_read_temp.append(lo_c)
+        try:
+            ser.write(cmd_read_temp)
+            sleep(0.2)  # wait 0.1s
+            response = ser.read(9)
+
+            # print("read byte data:", response.hex())
+            read_temp = 0
+            if (response[2] == 4):
+                read_temp = (response[3] << 8) + (response[4] << 0)
+                # print(f"熱電偶量測溫度: {read_temp}.")
+
+            return read_temp
+
+        except Exception as e1:
+            print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
+
+    with open("./Tempout.csv", 'a') as f:
+        print(f"{int(time())},{read_temp}", file=f)
     return int(read_temp)
 
 def Get_Current_Power():
@@ -269,6 +259,8 @@ def Get_Current_Power():
             read_power = ((response[11] << 24) + (response[12] << 16) + (response[13] << 8) + (response[14] << 0)) / 100
 
             # print(f"量測功率: {read_power}W. 量測電壓:{read_vol}V. 量測電流:{read_amp}A")
+            with open("./powerout.csv", 'a') as f:
+                print(f"{int(time())},{read_power}", file=f)
             return read_power
 
         except Exception as e1:
@@ -350,13 +342,12 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
         if log_fun1:
             print(f'時間上限(s):{(minutes * 60 + seconds)}. 當前時間(s):{elapsed_time}. 目標溫度:{float(set_temperature_value.get())}. 當前溫度:{temp}')
 
-        temp_dis = 10
         if (mins * 60 + secs) >= (minutes * 60 + seconds) or (temp != None and temp >= float(set_temperature_value.get())):
             if (mins * 60 + secs) >= (minutes * 60 + seconds) and (minutes>1 or seconds>1):
                 print("[fun1]加熱「時限達成」觸發，停止加熱、進入冷卻")
                 Cooling_enable = True
                 break
-            if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())-temp_dis):
+            if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())):
             # if (True):
                 if (fun2_thread != None and fun3_thread == None):
                     print("[fun1]加熱「溫度達成」觸發，停止加熱、進入持溫")
@@ -494,7 +485,7 @@ def stop_fun2():
     if fun2_thread:
         print("[fun2]停止加熱溫度偵測與加熱時長計算.")
         fun2_exit_flag.set()
-        fun2_thread.join()  # wait for thread stop
+        # fun2_thread.join()  # wait for thread stop
         fun2_thread = None
         print("[fun2-stop]停止加熱溫度偵測與加熱時長計算.")
 
@@ -504,7 +495,7 @@ def stop_fun3():
     if fun3_thread:
         print("[fun3]停止持溫溫度偵測與持溫時長計算.")
         fun3_exit_flag.set()
-        fun3_thread.join()  # wait for thread stop
+        # fun3_thread.join()  # wait for thread stop
         fun3_thread = None
         print("[fun3-stop]停止持溫溫度偵測與持溫時長計算.")
 

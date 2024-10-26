@@ -60,7 +60,7 @@ ser = serial.Serial()
 ser.port = "COM4"
 
 # 57600,N,8,1
-ser.baudrate = 57600
+ser.baudrate = 38400
 ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
 ser.parity = serial.PARITY_NONE  # set parity check
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
@@ -81,7 +81,8 @@ if ser.isOpen():
     ser.flushInput()  # flush input buffer
     ser.flushOutput()  # flush output buffer
 
-    cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x02]
+    # cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x02]
+    cmd_read_temp = [0x01, 0x03, 0x00, 0x00, 0x00, 0x02]
     hi_c = crc16(cmd_read_temp, 0, 6) >> 8
     lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
     cmd_read_temp.append(hi_c)
@@ -94,19 +95,15 @@ if ser.isOpen():
             response = ser.read(32)
 
             # print("read byte data:", response.hex())
-            read_temp, heat_temp = 0, 0
-            if (response[2] == 0x04):
-                read_temp = ((response[3] << 8) + response[4])/100
-                heat_temp = ((response[5] << 8) + response[6])/100
-            print("紅外線量測溫度:", read_temp)
-            print("探頭線量測溫度:", heat_temp)
+            read_temp = 0
+            if (response[2] == 4):
+                read_temp = (response[3] << 24) + (response[4] << 16)
+                print(f"熱電偶量測溫度: {read_temp}.")
 
         except Exception as e1:
-            print("communicating error " + str(e1))
-            ser.close()
+            print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
 
         time.sleep(0.5)
-    ser.close()
 else:
     print("open serial port error")
 

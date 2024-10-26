@@ -9,7 +9,7 @@ ser = serial.Serial()
 ser.port = "/dev/ttyUSB0"
 
 # 57600,N,8,1
-ser.baudrate = 57600
+ser.baudrate = 38400
 ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
 ser.parity = serial.PARITY_NONE  # set parity check
 ser.stopbits = serial.STOPBITS_ONE  # number of stop bits
@@ -125,42 +125,40 @@ def Get_Current_Power():
             print("communicating error " + str(e1))
             # ser.close()
 def Get_Temperature():
-    read_max6675(0, 0)
-    # if ser.isOpen():
-    #     ser.flushInput()  # flush input buffer
-    #     ser.flushOutput() # flush output buffer
-    #
-    #     cmd_read_temp = [0x01, 0x03, 0x00, 0x02, 0x00, 0x06]
-    #     hi_c = crc16(cmd_read_temp, 0, 6) >> 8
-    #     lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
-    #     cmd_read_temp.append(hi_c)
-    #     cmd_read_temp.append(lo_c)
-    #     try:
-    #         ser.write(cmd_read_temp)
-    #         sleep(0.1)  # wait 0.1s
-    #         response = ser.read(68)
-    #
-    #         # print("read byte data:", response.hex())
-    #         read_temp, heat_temp = 0, 0
-    #         if (response[2] == 12):
-    #             read_temp = ((response[3] << 24) + (response[4] << 16) + (response[5] << 8) + (response[6]))/100
-    #             heat_temp = ((response[7] << 8) + response[8]) / 100
-    #             print(f"紅外線量測溫度: {read_temp}. 探頭量測溫度:{heat_temp}")
-    #
-    #         return read_temp
-    #
-    #     except Exception as e1:
-    #         print("communicating error " + str(e1))
-    #         # ser.close()
+    global pre_temp
+    if ser.isOpen():
+        ser.flushInput()  # flush input buffer
+        ser.flushOutput() # flush output buffer
 
-try:
-    ser.open()
-    while True:
-        Get_Temperature()
-        Get_Current_Power()
-        sleep(1)
-except Exception as ex:
-    print("溫度感測模組或功率錶頭未插入(open serial port error) " + str(ex))
-    exit()
+        cmd_read_temp = [0x01, 0x03, 0x00, 0x00, 0x00, 0x02]
+        hi_c = crc16(cmd_read_temp, 0, 6) >> 8
+        lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
+        cmd_read_temp.append(hi_c)
+        cmd_read_temp.append(lo_c)
+        print("Send data:", cmd_read_temp)
+        # try:
+        ser.write(cmd_read_temp)
+        sleep(0.1)  # wait 0.1s
+        response = ser.read(9)
+        print("read byte data:", response.hex())
+        read_temp = 0
+        if (response[2] == 4):
+            read_temp = (response[3] << 8) + (response[4] << 0)
+            print(f"熱電偶量測溫度: {read_temp}.")
+
+        return read_temp
+
+        # except Exception as e1:
+        #     print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
+
+# try:
+ser.open()
+while True:
+    Get_Temperature()
+    Get_Current_Power()
+    sleep(1)
+# except Exception as ex:
+#     print("溫度感測模組或功率錶頭未插入(open serial port error) " + str(ex))
+#     exit()
 
 
