@@ -339,6 +339,7 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
         minutes, seconds = map(int, set_heating_time_value.get().split(':'))
         mins, secs = divmod(elapsed_time, 60)
         temp = Get_Temperature()
+        Temp_max = float(set_temperature_value.get())
         if log_fun1:
             print(f'時間上限(s):{(minutes * 60 + seconds)}. 當前時間(s):{elapsed_time}. 目標溫度:{float(set_temperature_value.get())}. 當前溫度:{temp}')
 
@@ -347,7 +348,7 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                 print("[fun1]加熱「時限達成」觸發，停止加熱、進入冷卻")
                 Cooling_enable = True
                 break
-            if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())):
+            if (temp != None and Temp_max > 1 and temp >= Temp_max):
                 if (fun2_thread != None and fun3_thread == None):
                     print("[fun1]加熱「溫度達成」觸發，停止加熱、進入持溫")
                     Retaing_enable = True
@@ -358,7 +359,7 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     Reserve_off()
 
         else:
-            if (Retaing_enable == True and temp != None and temp < float(set_temperature_value.get())):
+            if (Retaing_enable == True and temp != None and temp < Temp_max):
                 if (fun2_thread == None and fun3_thread != None):
                     print("[fun1]目前溫度偏低、持續升溫")
                     stop_fun3()
@@ -475,7 +476,7 @@ def stop_fun1():
     global fun1_thread
     if fun1_thread:
         fun1_exit_flag.set()
-        fun1_thread.join()  # wait for thread stop
+        # fun1_thread.join()  # wait for thread stop
         fun1_thread = None
         print("[fun1]加熱狀態結束.")
 
@@ -503,7 +504,7 @@ def stop_fun4():
     if fun4_thread:
         # ser.close()
         fun4_exit_flag.set()
-        fun4_thread.join()  # wait for thread stop
+        # fun4_thread.join()  # wait for thread stop
         fun4_thread = None
         print("[fun4]冷卻時間計算時間停止.")
 
