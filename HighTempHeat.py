@@ -348,7 +348,6 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                 Cooling_enable = True
                 break
             if (temp != None and float(set_temperature_value.get()) > 1 and temp >= float(set_temperature_value.get())):
-            # if (True):
                 if (fun2_thread != None and fun3_thread == None):
                     print("[fun1]加熱「溫度達成」觸發，停止加熱、進入持溫")
                     Retaing_enable = True
