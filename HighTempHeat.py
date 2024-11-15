@@ -225,16 +225,18 @@ def Get_Temperature():
             read_temp = 0
             if (response[2] == 4):
                 read_temp = (response[3] << 8) + (response[4] << 0)
+                pre_temp = read_temp
                 # print(f"熱電偶量測溫度: {read_temp}.")
 
-            return read_temp
+            if (read_temp != None):
+                with open("./Tempout.csv", 'a') as f:
+                    print(f"{int(time())},{read_temp}", file=f)
+                return read_temp
 
         except Exception as e1:
             print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
+            return pre_temp
 
-    with open("./Tempout.csv", 'a') as f:
-        print(f"{int(time())},{read_temp}", file=f)
-    return int(read_temp)
 
 def Get_Current_Power():
     if ser.isOpen():
@@ -265,9 +267,6 @@ def Get_Current_Power():
 
         except Exception as e1:
             print("功率檢測失敗，檢查功率檢測信號線 " + str(e1))
-            # ser.close()
-            # sleep(1)
-            # ser.open()
 
 def Update_Current_Temperature(temp):
     global current_temperature_label
