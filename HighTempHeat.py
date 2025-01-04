@@ -9,9 +9,11 @@ from time import time, sleep
 from datetime import datetime
 import spidev
 
-VoltageChangePin = 26 # Broadcom pin 18 PWM1 (P1 pin 33),  PWM 只有12, 13
-HeatingPin = 20 # Broadcom pin 17 (P1 pin 11)
-ReservePin = 21 # Broadcom pin 27 (P1 pin 13)
+VoltageChangePin = 19 # Broadcom pin 35, GPIO-19
+HeatingPin = 26 # Broadcom pin 37, GPIO-26
+VoltageAdjustPin = 20 # Broadcom pin 38, GPIO-20
+AmpereAdjustPin = 21 # Broadcom pin 40, GPIO-21
+
 
 auchCRCHi = [ 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
  0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
@@ -110,18 +112,6 @@ def GetShortFromBigEndianArray(data, sindex):
         return bb
     return 0
 
-def Reserve_get():
-    status = GPIO.input(ReservePin)
-    return status
-
-def Reserve_on():
-    GPIO.output(ReservePin, GPIO.LOW)
-    print("[Status]預留Relay開啟")
-
-def Reserve_off():
-    GPIO.output(ReservePin, GPIO.HIGH)
-    print("[Status]預留Relay關閉")
-
 def Heating_get():
     status = GPIO.input(HeatingPin)
     return status
@@ -145,6 +135,30 @@ def VoltageChange_on():
 def VoltageChange_off():
     GPIO.output(VoltageChangePin, GPIO.HIGH)
     print("[Status]切換到36V")
+
+def VoltageAdjust_get():
+    status = GPIO.input(VoltageAdjustPin)
+    return status
+
+def VoltageAdjust_on():
+    GPIO.output(VoltageAdjustPin, GPIO.LOW)
+    print("[Status]電壓VR調整開啟(Voltage)")
+
+def VoltageAdjust_off():
+    GPIO.output(VoltageAdjustPin, GPIO.HIGH)
+    print("[Status]電壓VR調整關閉(Voltage)")
+
+def AmpereAdjust_get():
+    status = GPIO.input(AmpereAdjustPin)
+    return status
+
+def AmpereAdjust_on():
+    GPIO.output(AmpereAdjustPin, GPIO.LOW)
+    print("[Status]電流VR調整開啟(Ampere)")
+
+def AmpereAdjust_off():
+    GPIO.output(AmpereAdjustPin, GPIO.HIGH)
+    print("[Status]電流VR調整關閉(Ampere)")
 
 def update_heat_time(wtime):
     heat_time_label['text'] = str(wtime)
@@ -288,13 +302,15 @@ def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
 def init():
     GPIO.cleanup()
     GPIO.setmode(GPIO.BCM)  # Broadcom pin-numbering scheme
-    GPIO.setup(HeatingPin, GPIO.OUT)  # LED pin set as output
-    GPIO.setup(ReservePin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(HeatingPin, GPIO.OUT)  # Heating pin set as output
     GPIO.setup(VoltageChangePin, GPIO.OUT)  # PWM pin set as output
+    GPIO.setup(AmpereAdjustPin, GPIO.OUT)  # LED pin set as output
+    GPIO.setup(VoltageAdjustPin, GPIO.OUT)  # LED pin set as output
     ser.open()
     VoltageChange_off()
     Heating_off()
-    Reserve_off()
+    AmpereAdjust_off()
+    VoltageAdjust_off()
     print("[Initializing]...")
 def Start():
     Pilotlamp_switch(heating_color="#00FF00", retaning_color="red", cooling_color="red")
@@ -308,13 +324,15 @@ def Start():
 
     VoltageChange_on()
     Heating_on()
-    Reserve_on()
+    AmpereAdjust_on()
+    VoltageAdjust_on()
 
 def Stop(r):
     Pilotlamp_switch(heating_color="red", retaning_color="red", cooling_color="#00FF00")
     VoltageChange_off()
     Heating_off()
-    Reserve_off()
+    AmpereAdjust_off()
+    VoltageAdjust_off()
     # ser.close()
     # spidev.SpiDev().close()
     exit_program(r)
@@ -353,9 +371,10 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     Retaing_enable = True
                     stop_fun2()
                     start_fun3()  # 進入持溫
-                    Heating_off()
                     VoltageChange_off()
-                    Reserve_off()
+                    Heating_off()
+                    AmpereAdjust_off()
+                    VoltageAdjust_off()
 
         else:
             if (Retaing_enable == True and temp != None and temp < Temp_max):
@@ -363,9 +382,10 @@ def fun1(): # 更新加熱時間Thread，並判定是否有超過預設加熱時
                     print("[fun1]目前溫度偏低、持續升溫")
                     stop_fun3()
                     start_fun2()  # 繼續加熱計算
+                    VoltageChange_on()
                     Heating_on()
-                    # VoltageChange_on()
-                    Reserve_on()
+                    AmpereAdjust_on()
+                    VoltageAdjust_on()
 
         if (Cooling_enable):
             break
