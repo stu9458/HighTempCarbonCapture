@@ -294,6 +294,33 @@ def Get_Current_Power():
         except Exception as e1:
             print("功率檢測失敗，檢查功率檢測信號線 " + str(e1))
 
+def Get_MDK():
+    global pre_temp
+    if ser.isOpen():
+        ser.flushInput()  # flush input buffer
+        ser.flushOutput() # flush output buffer
+
+        cmd_read_MDK = [0x05, 0x03, 0x00, 0x06, 0x00, 0x01]
+        hi_c = crc16(cmd_read_MDK, 0, 6) >> 8
+        lo_c = crc16(cmd_read_MDK, 0, 6) & 0x00ff
+        cmd_read_MDK.append(hi_c)
+        cmd_read_MDK.append(lo_c)
+        # print("Send data:", cmd_read_MDK)
+        # try:
+        ser.write(cmd_read_MDK)
+        sleep(0.1)  # wait 0.1s
+        response = ser.read(9)
+        # print("read byte data:", response.hex())
+        read_MDK = 0
+        if (response[2] == 2):
+            read_MDK = (response[3] << 8) + (response[4] << 0)
+            print(f"讀取MDK濃度: {read_MDK/10}.")
+
+        return read_MDK
+
+        # except Exception as e1:
+        #     print("溫度讀取失敗，請檢查MDK濃度量測器 " + str(e1))
+
 def Update_Current_Temperature(temp):
     global current_temperature_label
     current_temperature_label['text'] = str(temp)
