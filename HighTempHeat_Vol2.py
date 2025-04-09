@@ -319,7 +319,7 @@ def Get_MDK():
         return read_MDK
 
         # except Exception as e1:
-        #     print("溫度讀取失敗，請檢查MDK濃度量測器 " + str(e1))
+        #     print("濃度讀取失敗，請檢查MDK濃度量測器 " + str(e1))
 
 def Update_Current_Temperature(temp):
     global current_temperature_label
@@ -328,6 +328,10 @@ def Update_Current_Temperature(temp):
 def Update_Current_Power(current_power):
     global current_power_label
     current_power_label['text'] = str(current_power)
+
+def Update_Current_MDK_Value(mdk_value):
+    global MDK_Value_label
+    MDK_Value_label['text'] = str(mdk_value)
 
 def Pilotlamp_switch(heating_color, retaning_color, cooling_color="red"):
     global heating_light, retaining_light, cooling_light
@@ -443,6 +447,7 @@ def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」T
         update_heat_time(f'{mins}:{secs}')#更新加熱時間
         temp = Get_Temperature()
         current_power = Get_Current_Power()
+        mdk_value = Get_MDK()
 
         if (temp != None):
             Update_Current_Temperature(f'{temp:.1f}')
@@ -452,6 +457,10 @@ def fun2(): #更新顯示面板溫度、功率與計算「加熱經過時間」T
             Update_Current_Power(f'{current_power:.1f}')
         else:
             print("功率檢測錯誤")
+        if (mdk_value != None):
+            Update_Current_MDK_Value(f'{mdk_value}')
+        else:
+            print("氣體讀取錯誤")
         sleep(0.5)
 def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」Thread
     global input_temperature, retaing_time, elapsed_time
@@ -466,9 +475,11 @@ def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」T
         update_retaing_time(f'{mins}:{secs}')#更新持溫時間
         temp = Get_Temperature()
         current_power = Get_Current_Power()
-        if (temp != None and current_power != None):
+        mdk_value = Get_MDK()
+        if (temp != None and current_power != None and mdk_value != None):
             Update_Current_Temperature(f'{temp:.1f}')
             Update_Current_Power(f'{current_power:.1f}')
+            Update_Current_MDK_Value(f'{mdk_value:.1f}')
         sleep(0.5)
 
 def fun4():
@@ -484,9 +495,11 @@ def fun4():
             print(f'[fun4]冷卻經過時長: {elapsed_time}')
         temp = Get_Temperature()
         current_power = Get_Current_Power()
-        if (temp != None and current_power != None):
+        mdk_value = Get_MDK()
+        if (temp != None and current_power != None and mdk_value != None):
             Update_Current_Temperature(f'{temp:.1f}')
             Update_Current_Power(f'{current_power:.1f}')
+            Update_Current_MDK_Value(f'{mdk_value:.1f}')
         mins, secs = divmod(elapsed_time, 60)
         update_cooling_time(f'{mins}:{secs}')
         sleep(0.5)
@@ -641,39 +654,50 @@ electric_energy_consumption_label.grid(column=w_column, row=w_row, pady=2)
 
 w_row = 3
 w_column = 2
-w_lable = tk.Label(display_data_region, text='electric_energy_consumption(度)', borderwidth=0, relief="solid")
+w_lable = tk.Label(display_data_region, text='Energy consumption(度)', borderwidth=0, relief="solid")
+w_lable.grid(column=w_column, row=w_row, pady=2)
+
+# 氣體讀取數據顯示
+w_row = 2
+w_column = 3
+MDK_Value_label = tk.Label(display_data_region, width=entry_width, borderwidth=1, relief="solid", anchor="w")
+MDK_Value_label.grid(column=w_column, row=w_row, pady=2)
+
+w_row = 3
+w_column = 3
+w_lable = tk.Label(display_data_region, text='MDK氣體數值', borderwidth=0, relief="solid")
 w_lable.grid(column=w_column, row=w_row, pady=2)
 
 # 加熱指示燈
 w_row = 0
-w_column = 4
+w_column = 6
 heating_light = tk.Canvas(display_data_region, width=20, height=20)
 heating_light.create_oval(5, 5, 20, 20, width=2, fill='red', outline='red')
 heating_light.grid(column=w_column, row=w_row)
 w_row = 0
-w_column = 5
+w_column = 7
 w_lable = tk.Label(display_data_region, text='加熱', borderwidth=1, relief="solid")
 w_lable.grid(column=w_column, row=w_row, pady=0)
 
 # 持溫指示燈
 w_row = 1
-w_column = 4
+w_column = 6
 retaining_light = tk.Canvas(display_data_region, width=20, height=20)
 retaining_light.create_oval(5, 5, 20, 20, width=2, fill='red', outline='red')
 retaining_light.grid(column=w_column, row=w_row)
 w_row = 1
-w_column = 5
+w_column = 7
 w_lable = tk.Label(display_data_region, text='持溫', borderwidth=1, relief="solid")
 w_lable.grid(column=w_column, row=w_row, pady=0)
 
 # 冷卻指示燈
 w_row = 2
-w_column = 4
+w_column = 6
 cooling_light = tk.Canvas(display_data_region, width=20, height=20)
 cooling_light.create_oval(5, 5, 20, 20, width=2, fill='red', outline='red')
 cooling_light.grid(column=w_column, row=w_row)
 w_row = 2
-w_column = 5
+w_column = 7
 w_lable = tk.Label(display_data_region, text='冷卻', borderwidth=1, relief="solid")
 w_lable.grid(column=w_column, row=w_row, pady=0)
 display_data_region.pack(side='top', anchor='w')
