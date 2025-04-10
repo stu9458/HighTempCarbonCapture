@@ -6,10 +6,12 @@ from datetime import datetime
 # import spidev
 
 ser = serial.Serial()
-# ser.port = "/dev/ttyUSB0"
-ser.port = "COM3"
+ser2 = serial.Serial()
+ser.port = "/dev/ttyUSB0"
+ser2.port = "/dev/ttyUSB1"
+# ser.port = "COM3"
 
-# 57600,N,8,1
+# 38400,N,8,1
 ser.baudrate = 38400
 ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
 ser.parity = serial.PARITY_NONE  # set parity check
@@ -20,6 +22,17 @@ ser.writeTimeout = 0.5  # timeout for write 0.5s
 ser.xonxoff = False  # disable software flow control
 ser.rtscts  = False  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr  = False  # disable hardware (DSR/DTR) flow control
+
+ser2.baudrate = 38400
+ser2.bytesize = serial.EIGHTBITS  # number of bits per bytes
+ser2.parity = serial.PARITY_NONE  # set parity check
+ser2.stopbits = serial.STOPBITS_ONE  # number of stop bits
+
+ser2.timeout = 0.5  # non-block read 0.5s
+ser2.writeTimeout = 0.5  # timeout for write 0.5s
+ser2.xonxoff = False  # disable software flow control
+ser2.rtscts  = False  # disable hardware (RTS/CTS) flow control
+ser2.dsrdtr  = False  # disable hardware (DSR/DTR) flow control
 
 auchCRCHi = [ 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
  0x40, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0,
@@ -137,26 +150,26 @@ def Get_Temperature():
         cmd_read_temp.append(hi_c)
         cmd_read_temp.append(lo_c)
         print("Send data:", cmd_read_temp)
-        # try:
-        ser.write(cmd_read_temp)
-        sleep(0.1)  # wait 0.1s
-        response = ser.read(9)
-        print("read byte data:", response.hex())
-        read_temp = 0
-        if (response[2] == 4):
-            read_temp = (response[3] << 8) + (response[4] << 0)
-            print(f"熱電偶量測溫度: {read_temp}.")
+        try:
+            ser.write(cmd_read_temp)
+            sleep(0.1)  # wait 0.1s
+            response = ser.read(9)
+            print("read byte data:", response.hex())
+            read_temp = 0
+            if (response[2] == 4):
+                read_temp = (response[3] << 8) + (response[4] << 0)
+                print(f"熱電偶量測溫度: {read_temp}.")
 
-        return read_temp
+            return read_temp
 
-        # except Exception as e1:
-        #     print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
+        except Exception as e1:
+            print("溫度讀取失敗，請檢查溫度量測器 " + str(e1))
 
 def Get_MDK():
     global pre_temp
-    if ser.isOpen():
-        ser.flushInput()  # flush input buffer
-        ser.flushOutput() # flush output buffer
+    if ser2.isOpen():
+        ser2.flushInput()  # flush input buffer
+        ser2.flushOutput() # flush output buffer
 
         cmd_read_MDK = [0x05, 0x03, 0x00, 0x06, 0x00, 0x01]
         hi_c = crc16(cmd_read_MDK, 0, 6) >> 8
@@ -164,26 +177,27 @@ def Get_MDK():
         cmd_read_MDK.append(hi_c)
         cmd_read_MDK.append(lo_c)
         # print("Send data:", cmd_read_MDK)
-        # try:
-        ser.write(cmd_read_MDK)
-        sleep(0.1)  # wait 0.1s
-        response = ser.read(9)
-        # print("read byte data:", response.hex())
-        read_MDK = 0
-        if (response[2] == 2):
-            read_MDK = (response[3] << 8) + (response[4] << 0)
-            print(f"讀取MDK濃度: {read_MDK/10}.")
+        try:
+            ser2.write(cmd_read_MDK)
+            sleep(0.1)  # wait 0.1s
+            response = ser2.read(9)
+            # print("read byte data:", response.hex())
+            read_MDK = 0
+            if (response[2] == 2):
+                read_MDK = (response[3] << 8) + (response[4] << 0)
+                print(f"讀取MDK濃度: {read_MDK/10}.")
 
-        return read_MDK
+            return read_MDK
 
-        # except Exception as e1:
-        #     print("溫度讀取失敗，請檢查MDK濃度偵測器 " + str(e1))
+        except Exception as e1:
+            print("濃度讀取失敗，請檢查MDK濃度偵測器 " + str(e1))
 
 # try:
 ser.open()
+ser2.open()
 while True:
-    # Get_Temperature()
-    # Get_Current_Power()
+    Get_Temperature()
+    Get_Current_Power()
     Get_MDK()
     sleep(1)
 # except Exception as ex:
