@@ -56,6 +56,9 @@ auchCRCLo = [ 0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 
 ser = serial.Serial()
 ser.port = "/dev/ttyUSB0"
 
+ser2 = serial.Serial()
+ser2.port = "/dev/ttyUSB1"
+
 input_temperature = 80.0
 temperature_max = 0
 temperature_min = temperature_max - 10
@@ -65,7 +68,7 @@ estimated_heat_time = "10:00"           # 預計加熱時長
 heat_power = 12*7.5                     # 固定加熱功率
 heat_kwh = 0.0                          # 累計加熱功率，度數
 
-# 57600,N,8,1
+# 38400,N,8,1
 ser.baudrate = 38400
 ser.bytesize = serial.EIGHTBITS  # number of bits per bytes
 ser.parity = serial.PARITY_NONE  # set parity check
@@ -76,6 +79,17 @@ ser.writeTimeout = 0.5  # timeout for write 0.5s
 ser.xonxoff = False  # disable software flow control
 ser.rtscts  = False  # disable hardware (RTS/CTS) flow control
 ser.dsrdtr  = False  # disable hardware (DSR/DTR) flow control
+
+ser2.baudrate = 38400
+ser2.bytesize = serial.EIGHTBITS  # number of bits per bytes
+ser2.parity = serial.PARITY_NONE  # set parity check
+ser2.stopbits = serial.STOPBITS_ONE  # number of stop bits
+
+ser2.timeout = 0.5  # non-block read 0.5s
+ser2.writeTimeout = 0.5  # timeout for write 0.5s
+ser2.xonxoff = False  # disable software flow control
+ser2.rtscts  = False  # disable hardware (RTS/CTS) flow control
+ser2.dsrdtr  = False  # disable hardware (DSR/DTR) flow control
 
 # 建立 flag
 fun1_exit_flag = threading.Event()
@@ -94,6 +108,7 @@ fun2_thread = None  # Heating
 fun3_thread = None  # 加熱時間
 fun4_thread = None  # 冷卻時間
 pre_temp    = 0 # 溫度過濾用
+pre_mdk     = 0
 
 def crc16(data, ifrom, ito) :
     uchCRCHi = 0xff
@@ -237,7 +252,7 @@ def Get_Temperature():
         ser.flushInput()  # flush input buffer
         ser.flushOutput() # flush output buffer
 
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x00, 0x00, 0x02]
+        cmd_read_temp = [0x03, 0x03, 0x00, 0x00, 0x00, 0x02]
         hi_c = crc16(cmd_read_temp, 0, 6) >> 8
         lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
         cmd_read_temp.append(hi_c)
@@ -295,10 +310,10 @@ def Get_Current_Power():
             print("功率檢測失敗，檢查功率檢測信號線 " + str(e1))
 
 def Get_MDK():
-    global pre_temp
-    if ser.isOpen():
-        ser.flushInput()  # flush input buffer
-        ser.flushOutput() # flush output buffer
+    global pre_mdk
+    if ser2.isOpen():
+        ser2.flushInput()  # flush input buffer
+        ser2.flushOutput() # flush output buffer
 
         cmd_read_MDK = [0x05, 0x03, 0x00, 0x06, 0x00, 0x01]
         hi_c = crc16(cmd_read_MDK, 0, 6) >> 8
@@ -306,20 +321,24 @@ def Get_MDK():
         cmd_read_MDK.append(hi_c)
         cmd_read_MDK.append(lo_c)
         # print("Send data:", cmd_read_MDK)
-        # try:
-        ser.write(cmd_read_MDK)
-        sleep(0.1)  # wait 0.1s
-        response = ser.read(9)
-        # print("read byte data:", response.hex())
-        read_MDK = 0
-        if (response[2] == 2):
-            read_MDK = (response[3] << 8) + (response[4] << 0)
-            print(f"讀取MDK濃度: {read_MDK/10}.")
+        try:
+            ser2.write(cmd_read_MDK)
+            sleep(0.1)  # wait 0.1s
+            response = ser2.read(9)
+            print("read byte data:", response.hex())
+            read_MDK = 0
+            if (response[2] == 2):
+                read_MDK = ((response[3] << 8) + (response[4] << 0))/10
+                pre_mdk = read_MDK
+                print(f"讀取MDK濃度: {read_MDK}.")
 
-        return read_MDK
+            with open("./mdk_value.csv", 'a') as f:
+                print(f"{int(time())},{read_MDK}", file=f)
+            return read_MDK
 
-        # except Exception as e1:
-        #     print("濃度讀取失敗，請檢查MDK濃度量測器 " + str(e1))
+        except Exception as e1:
+            return pre_mdk
+            print("濃度讀取失敗，請檢查MDK濃度偵測器 " + str(e1))
 
 def Update_Current_Temperature(temp):
     global current_temperature_label
@@ -350,6 +369,7 @@ def init():
     GPIO.setup(AmpereAdjustPin, GPIO.OUT)  # LED pin set as output
     GPIO.setup(VoltageAdjustPin, GPIO.OUT)  # LED pin set as output
     ser.open()
+    ser2.open()
     VoltageChange_off()
     Heating_off()
     GeneralMode()
@@ -478,6 +498,10 @@ def fun3(): #更新顯示面板溫度、功率與計算「持溫經過時間」T
         mdk_value = Get_MDK()
         if (temp != None and current_power != None and mdk_value != None):
             Update_Current_Temperature(f'{temp:.1f}')
+            Update_Current_Power(f'{current_power:.1f}')
+            Update_Current_MDK_Value(f'{mdk_value:.1f}')
+
+        if (current_power != None and mdk_value != None):
             Update_Current_Power(f'{current_power:.1f}')
             Update_Current_MDK_Value(f'{mdk_value:.1f}')
         sleep(0.5)

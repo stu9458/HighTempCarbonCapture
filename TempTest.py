@@ -144,7 +144,7 @@ def Get_Temperature():
         ser.flushInput()  # flush input buffer
         ser.flushOutput() # flush output buffer
 
-        cmd_read_temp = [0x01, 0x03, 0x00, 0x00, 0x00, 0x02]
+        cmd_read_temp = [0x03, 0x03, 0x00, 0x00, 0x00, 0x02]
         hi_c = crc16(cmd_read_temp, 0, 6) >> 8
         lo_c = crc16(cmd_read_temp, 0, 6) & 0x00ff
         cmd_read_temp.append(hi_c)
@@ -194,11 +194,11 @@ def Get_MDK():
 
 # try:
 ser.open()
-ser2.open()
+# ser2.open()
 while True:
     Get_Temperature()
-    Get_Current_Power()
-    Get_MDK()
+    # Get_Current_Power()
+    # Get_MDK()
     sleep(1)
 # except Exception as ex:
 #     print("溫度感測模組或功率錶頭未插入(open serial port error) " + str(ex))
